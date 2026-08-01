@@ -1,7 +1,12 @@
 # IATROS Documentation
 
 > [!IMPORTANT]
-> IATROS is currently a pre-implementation scaffold. These documents describe target boundaries, requirements, and decisions; they do not describe working software.
+> IATROS is in early implementation. A local Cobra-based CLI contract stub is runnable, while repository scanning and the broader target capabilities remain unimplemented.
+
+## Product specifications
+
+- [Product specification index](product/README.md) — approved user-visible contracts and their implementation status.
+- [PS-0001: Local repository analysis](product/0001-local-repository-analysis.md) — the first local-only, read-only CLI vertical slice.
 
 ## Architecture
 
@@ -20,7 +25,7 @@ Architecture documents use the following labels:
 | **Target** | Intended behavior or responsibility that has not been implemented yet. |
 | **Proposed** | A concrete direction that still requires an accepted decision. |
 | **TBD** | An intentionally open choice that must not be silently assumed. |
-| **Implemented** | Verified behavior present in source and tests. There is currently none. |
+| **Implemented** | Verified behavior present in source and tests. Currently limited to the CLI contract stub documented in PS-0001. |
 
 ## Documentation rules
 
