@@ -8,8 +8,9 @@ Architecture decision records (ADRs) capture consequential choices, their contex
 | --- | --- | --- | --- | --- |
 | [ADR-0001](0001-capability-boundaries-and-dependency-direction.md) | Capability boundaries and dependency direction | Accepted | 2026-07-31 | — |
 | [ADR-0002](0002-single-community-core-with-optional-overlays.md) | Single Community core with optional overlays | Accepted | 2026-07-31 | — |
-| [ADR-0003](0003-start-with-one-go-module.md) | Start with one Go module | Proposed | 2026-07-31 | — |
+| [ADR-0003](0003-start-with-one-go-module.md) | Start with one Go module | Accepted | 2026-07-31 | — |
 | [ADR-0004](0004-control-state-changing-operations.md) | Control state-changing operations | Proposed | 2026-07-31 | — |
+| [ADR-0005](0005-use-cobra-as-the-cli-adapter.md) | Use Cobra as the CLI adapter | Accepted | 2026-08-01 | — |
 
 ## Status lifecycle
 

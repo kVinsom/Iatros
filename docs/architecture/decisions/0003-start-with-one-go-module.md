@@ -1,7 +1,8 @@
 # ADR-0003: Start with one Go module
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-07-31
+- **Accepted:** 2026-08-01
 - **Supersedes:** None
 - **Superseded by:** None
 
@@ -11,17 +12,15 @@ Go is the intended language for the backend, CLI, SDK, and first-party plugins, 
 
 Starting with multiple modules would introduce workspace configuration, version coordination, release automation, compatibility policy, and cross-module refactoring costs before independent lifecycles are demonstrated.
 
-## Proposed decision
+## Decision
 
 Begin first-party Go implementation with one `go.mod` at the repository root.
 
+- Use `github.com/kVinsom/Iatros` as the canonical module path.
 - Backend executables, internal domains, public Go contracts, and first-party Go plugins initially share the root module and release cadence.
-- Do not guess the module path; select it when the first module is created.
 - Do not introduce nested modules merely to mirror directory boundaries.
 - Split an SDK, plugin family, or other component only when it has a demonstrated need for independent consumption, versioning, compatibility, and release.
 - A module split requires a new ADR and migration plan.
-
-This ADR can become **Accepted** once maintainers approve the initial module strategy. Acceptance should precede implementation; selecting the canonical module path and creating the root module are subsequent implementation prerequisites.
 
 ## Consequences
 
@@ -51,10 +50,9 @@ Deferred because a workspace coordinates modules but does not justify why those 
 
 ## Implementation validation
 
-After acceptance, implementation must:
+The initial implementation must continue to:
 
-- choose and document the canonical module path;
-- create one root `go.mod`;
+- keep the canonical module path documented in the root `go.mod`;
 - verify all initial first-party packages build and test from the root;
 - ensure no nested `go.mod` is introduced without a superseding ADR.
 

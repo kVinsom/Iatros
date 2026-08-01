@@ -1,7 +1,7 @@
 # IATROS Target Architecture
 
 > [!IMPORTANT]
-> **Status: target architecture, pre-implementation.** This document describes intended boundaries and design constraints. It is not evidence that any runtime, API, SDK, plugin, workflow, or security mechanism has been implemented.
+> **Status: target architecture with an initial CLI contract implementation.** The root Go module, Cobra-based CLI adapter, and local analysis placeholder are implemented. Repository scanning and every broader runtime, API, SDK, plugin, workflow, and security capability remain target behavior unless explicitly marked otherwise.
 
 Related documents:
 
@@ -11,7 +11,7 @@ Related documents:
 
 ## 1. Status and scope
 
-The repository currently contains the canonical directory scaffold, project metadata, branding, and documentation. It does not contain a Go module, application source, schemas, deployment configuration, tests, CI workflows, or releases.
+The repository contains the canonical directory scaffold, project metadata, branding, documentation, one root Go module, and a tested `iatros analyze` contract stub. It does not yet contain repository scanning, public schemas, deployment configuration, CI workflows, or releases.
 
 This document establishes:
 
@@ -85,12 +85,13 @@ External repositories, provider responses, plugin output, and model output are d
 7. **Consumer-owned interfaces.** Internal interfaces remain close to the domain that consumes them. Do not create global `common`, `shared`, `interfaces`, `models`, `services`, `repositories`, `helpers`, or `utils` dumping grounds.
 8. **Acyclic internal dependencies.** Cross-domain dependencies must follow use cases, remain minimal, and avoid cycles.
 9. **No speculative hierarchy.** Add vendor, version, transport, or deployment-specific packages only when real implementation requires them.
+10. **One initial Go module.** First-party Go packages share `github.com/kVinsom/Iatros` until an independently released component justifies a split.
+11. **Isolated CLI framework.** Cobra remains inside the CLI adapter; provider-neutral analysis and domain packages do not depend on it.
 
-These established constraints are recorded in [ADR-0001](decisions/0001-capability-boundaries-and-dependency-direction.md) and [ADR-0002](decisions/0002-single-community-core-with-optional-overlays.md).
+These established constraints are recorded in [ADR-0001](decisions/0001-capability-boundaries-and-dependency-direction.md), [ADR-0002](decisions/0002-single-community-core-with-optional-overlays.md), [ADR-0003](decisions/0003-start-with-one-go-module.md), and [ADR-0005](decisions/0005-use-cobra-as-the-cli-adapter.md).
 
 ### Proposed
 
-- Begin first-party Go implementation in one root module and split modules only for a demonstrated independent release lifecycle. See [ADR-0003](decisions/0003-start-with-one-go-module.md).
 - Route state-changing operations through a policy-enforced `plan → validate → policy decision → approval when required → apply → verify` flow. See [ADR-0004](decisions/0004-control-state-changing-operations.md).
 
 ## 5. Logical component model
@@ -250,7 +251,7 @@ These are logical responsibilities, not a commitment to five independently deplo
 
 | Entry point | Target responsibility | Open choices |
 | --- | --- | --- |
-| `cmd/iatros` | Human-facing CLI and possible local composition root. | Embedded local runtime versus control-plane client. |
+| `cmd/iatros` | Implemented human-facing CLI composition root. It currently exposes help, version, and the local analysis contract stub. | Whether later workflows remain embedded or use a control plane. |
 | `cmd/mcp` | Model Context Protocol adapter for MCP hosts. | Transport, authentication, and exposed capabilities. |
 | `cmd/controlplane` | Request admission, policy checks, coordination, and workflow metadata. | API protocol, persistence, tenancy, and deployment topology. |
 | `cmd/worker` | Asynchronous or long-running workflow execution. | Queue, scheduling, retries, leases, and whether it is needed for the first release. |
@@ -350,7 +351,7 @@ See [Testing strategy](testing.md) for the target verification model.
 
 ## 14. Non-goals
 
-- Claiming runnable functionality in the current scaffold.
+- Claiming target capabilities as runnable before source and tests prove them.
 - Duplicating the Community core for Commercial or Enterprise editions.
 - Putting vendor-specific code in `internal/`.
 - Choosing vendors, API versions, queues, databases, RPC, deployment topology, or plugin process model before requirements exist.
@@ -364,7 +365,7 @@ See [Testing strategy](testing.md) for the target verification model.
 
 The following choices remain intentionally unresolved:
 
-- embedded/local versus control-plane-first initial product;
+- whether the product remains local-first after the approved local repository-analysis slice or introduces a control plane for later workflows;
 - API transport, wire format, and versioning;
 - workflow persistence, queues, retries, idempotency, cancellation, and recovery;
 - authentication, authorization, resource hierarchy, tenancy, and audit model;

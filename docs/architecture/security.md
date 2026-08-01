@@ -1,7 +1,7 @@
 # IATROS Security Architecture
 
 > [!IMPORTANT]
-> **Status: proposed baseline, pre-implementation.** No security control described here exists yet. The requirements define the safety bar for future design and implementation; unresolved mechanisms remain explicitly TBD.
+> **Status: proposed baseline with initial local safeguards.** The current CLI stub validates one local directory through metadata and a directory handle, rejects selected link targets and explicit Windows network or device paths, exposes only a relative report root, and performs no repository traversal, content reads, network access, or target writes. All broader controls remain target requirements unless explicitly marked otherwise.
 
 See also:
 
@@ -22,7 +22,7 @@ IATROS is intended to process repositories, operational metadata, model output, 
 - fail safely when authorization, execution, or verification is indeterminate;
 - support investigation and recovery without leaking secrets.
 
-The terms **must** and **should** below describe target requirements, not implemented behavior.
+The terms **must** and **should** below describe target requirements unless a section explicitly identifies implemented behavior.
 
 ## 2. Trust model
 

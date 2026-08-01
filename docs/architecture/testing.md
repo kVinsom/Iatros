@@ -1,7 +1,7 @@
 # IATROS Testing Strategy
 
 > [!IMPORTANT]
-> **Status: target strategy, pre-implementation.** No test suite or CI workflow exists yet. This document defines where future tests belong and what architectural risks they must cover.
+> **Status: target strategy with an initial unit-test baseline.** Package tests cover the local analysis stub and Cobra CLI contract. CI, integration, end-to-end, security, performance, and resilience suites are not implemented yet.
 
 See also:
 
@@ -22,6 +22,13 @@ Testing must provide evidence that:
 - Community remains functional without optional extensions.
 
 Test quantity is not a substitute for testing the correct boundary.
+
+### Current baseline
+
+- `internal/analysis` tests cover target validation, cancellation, report invariants, safe evidence, and deterministic normalization.
+- `internal/cli` tests cover help, version output, parsing, complete text and JSON reports, malformed analyzer outcomes, cancellation, output failures, target privacy, and exit-code mapping.
+- The verified local commands are `go test ./...`, `go vet ./...`, and `go build ./...`.
+- No CI workflow or cross-component test suite exists yet.
 
 ## 2. Test placement
 
@@ -215,7 +222,7 @@ Expensive provider, load, chaos, and broad compatibility suites may run on prote
 
 ## 9. Definition of done
 
-A future implementation change is complete only when:
+An implementation change is complete only when the applicable requirements below are satisfied:
 
 - behavior and non-behavior are documented accurately;
 - tests prove domain behavior at the lowest useful layer;
@@ -230,7 +237,7 @@ A future implementation change is complete only when:
 
 ## 10. Open testing decisions
 
-- test framework and assertion libraries;
+- additional test frameworks or assertion libraries beyond the Go standard library;
 - provider emulator and contract-fixture strategy;
 - CI platform and protected-branch gates;
 - coverage measurement and whether thresholds are useful;
