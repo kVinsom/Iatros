@@ -22,8 +22,8 @@ Related documents:
 | Go module and Cobra command surface | Implemented |
 | Versioned text and JSON contract stub | Implemented |
 | Local target validation and documented exit codes | Implemented |
-| Safe filesystem discovery | Not started |
-| Ecosystem marker detection | Not started |
+| Safe filesystem discovery | Implemented internally; CLI integration deferred |
+| Ecosystem marker detection | Implemented internally; report and CLI integration deferred |
 | Repository-readiness findings | Not started |
 
 ## 1. Summary
@@ -212,7 +212,9 @@ Rules:
 - A marker indicates detected tooling or an ecosystem; it does not prove that the repository builds or runs.
 - The detector must not claim an ecosystem without direct evidence.
 
-The initial marker set may cover Go, Node.js, Python, Rust, Maven or Gradle, Docker, Terraform, GitHub Actions, and GitLab CI. Exact marker parsing belongs to implementation tasks.
+The internal filename catalog covers common backend languages, runtimes, dependency managers, build systems, containers, orchestration, infrastructure as code, configuration management, CI/CD, GitOps, observability, networking, security, secrets, and cloud-platform tooling. The exact supported IDs and evidence policy are documented in the [technology detection architecture](../architecture/detection.md).
+
+Filename-only results are private internal `Technology` records in this increment. Mapping them into the versioned `Ecosystem` report contract is deferred until discovery, detection, diagnostics, and bounded-evidence behavior can be integrated together without changing the CLI stub prematurely.
 
 ## 11. Finding result
 
@@ -286,7 +288,20 @@ The implementation must:
 - return `partial` or `failed` with diagnostics when safe analysis cannot continue;
 - handle cancellation without reporting success.
 
-Exact limit defaults and ignore-file semantics are TBD before the real scanner is implemented.
+The internal discovery baseline uses the following conservative defaults:
+
+| Limit | Basic default |
+| --- | ---: |
+| Files retained | 2,000 |
+| Directories retained, including the root | 500 |
+| Directory depth below the root | 20 |
+| Structured discovery issues retained | 50 |
+| Entries accepted from one directory | 2,500 |
+| Discovery duration | 5 seconds |
+
+Discovery reads directory entries and file metadata only. It retains one confined `os.Root`, returns sorted root-relative paths, skips symbolic links, junction-like irregular entries, `.git`, `.hg`, and `.svn`, and never opens regular files. Access failures and reached limits produce bounded structured issues that can later support deterministic or AI-assisted remediation comments.
+
+Root and nested `.gitignore` rules are not interpreted in this increment. Correct support requires nested rule scope, negation, escaping, and anchored matching; partial support could hide relevant evidence. The `.gitignore` file itself remains visible in inventory, while its patterns do not change traversal.
 
 ## 14. Stub implementation contract
 
@@ -335,8 +350,8 @@ The product specification is satisfied when:
 
 ## 17. Deferred decisions
 
-- exact scan limits and configuration surface;
-- whether and how root `.gitignore` affects traversal;
+- release and Enterprise discovery-limit profiles and their configuration surface;
+- complete `.gitignore` semantics and their configuration policy;
 - hidden-file policy outside known sensitive paths;
 - nested project and monorepo boundaries;
 - binary-file detection;

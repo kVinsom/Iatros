@@ -1,7 +1,11 @@
 # IATROS Security Architecture
 
 > [!IMPORTANT]
-> **Status: proposed baseline with initial local safeguards.** The current CLI stub validates one local directory through metadata and a directory handle, rejects selected link targets and explicit Windows network or device paths, exposes only a relative report root, and performs no repository traversal, content reads, network access, or target writes. All broader controls remain target requirements unless explicitly marked otherwise.
+> **Status: proposed baseline with initial local safeguards.** The current CLI stub validates one local directory through metadata and a directory handle, rejects selected link targets and explicit Windows network or device paths, exposes only a relative report root, and performs no repository traversal, content reads, network access, or target writes. A separate internal discovery component now performs bounded metadata-only traversal but is not connected to CLI reports. All broader controls remain target requirements unless explicitly marked otherwise.
+
+The internal discovery component retains one confined `os.Root`, skips link and irregular entries, streams directory entries in bounded chunks, caps retained paths and issues, and never opens regular files. Filesystem access failures become root-relative structured issues without exposing raw operating-system errors.
+
+The internal technology detector consumes only the validated root-relative inventory. It sorts and deduplicates paths, bounds retained evidence, rejects unsafe evidence paths, honors cancellation, and does not read file content or execute detected package managers and infrastructure tools.
 
 See also:
 

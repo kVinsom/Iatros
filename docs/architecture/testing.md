@@ -1,7 +1,7 @@
 # IATROS Testing Strategy
 
 > [!IMPORTANT]
-> **Status: target strategy with an initial unit-test baseline.** Package tests cover the local analysis stub and Cobra CLI contract. CI, integration, end-to-end, security, performance, and resilience suites are not implemented yet.
+> **Status: target strategy with an initial unit-test baseline.** Package tests cover bounded local discovery, broad filename-based technology detection, the local analysis stub, and the Cobra CLI contract. CI, cross-component integration, end-to-end, security, performance, and resilience suites are not implemented yet.
 
 See also:
 
@@ -25,7 +25,8 @@ Test quantity is not a substitute for testing the correct boundary.
 
 ### Current baseline
 
-- `internal/analysis` tests cover target validation, cancellation, report invariants, safe evidence, and deterministic normalization.
+- `internal/analysis` tests cover bounded filesystem discovery, ignored VCS paths, access issues, cancellation, target validation, report invariants, safe evidence, and deterministic normalization.
+- `internal/detection` tests cover the language and dependency-manager baseline, all technology categories, nested marker matching, deterministic evidence bounds, unsafe paths, cancellation, catalog invariants, and conservative handling of generic filenames.
 - `internal/cli` tests cover help, version output, parsing, complete text and JSON reports, malformed analyzer outcomes, cancellation, output failures, target privacy, and exit-code mapping.
 - The verified local commands are `go test ./...`, `go vet ./...`, and `go build ./...`.
 - No CI workflow or cross-component test suite exists yet.

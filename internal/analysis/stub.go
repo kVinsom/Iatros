@@ -51,44 +51,48 @@ func (LocalStub) Analyze(ctx context.Context, request Request) (Report, error) {
 }
 
 func validateLocalDirectory(path string) error {
+	root, err := openLocalRoot(path)
+	if err != nil {
+		return err
+	}
+	return root.Close()
+}
+
+func openLocalRoot(path string) (*os.Root, error) {
 	if path == "" || isWindowsRemoteOrDevicePath(path) {
-		return ErrInvalidTarget
+		return nil, ErrInvalidTarget
 	}
 
 	absolutePath, err := filepath.Abs(path)
 	if err != nil || isWindowsRemoteOrDevicePath(absolutePath) {
-		return ErrInvalidTarget
+		return nil, ErrInvalidTarget
 	}
 
 	info, err := os.Lstat(absolutePath)
 	if err != nil {
-		return ErrInvalidTarget
+		return nil, ErrInvalidTarget
 	}
 	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-		return ErrInvalidTarget
+		return nil, ErrInvalidTarget
 	}
 
-	// Acquiring a directory handle verifies access without reading repository entries.
-	// The real scanner must retain its own os.Root for confined traversal.
 	root, err := os.OpenRoot(absolutePath)
 	if err != nil {
-		return classifyTargetAccessError(err)
+		return nil, classifyTargetAccessError(err)
 	}
 	openedInfo, statErr := root.Stat(".")
-	closeErr := root.Close()
 	if statErr != nil {
-		return classifyTargetAccessError(statErr)
+		_ = root.Close()
+		return nil, classifyTargetAccessError(statErr)
 	}
 	// Comparing identities detects target replacement between metadata validation
 	// and directory-handle acquisition.
 	if !os.SameFile(info, openedInfo) {
-		return ErrInvalidTarget
-	}
-	if closeErr != nil {
-		return closeErr
+		_ = root.Close()
+		return nil, ErrInvalidTarget
 	}
 
-	return nil
+	return root, nil
 }
 
 func classifyTargetAccessError(err error) error {

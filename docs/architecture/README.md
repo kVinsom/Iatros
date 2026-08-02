@@ -1,17 +1,18 @@
 # IATROS Target Architecture
 
 > [!IMPORTANT]
-> **Status: target architecture with an initial CLI contract implementation.** The root Go module, Cobra-based CLI adapter, and local analysis placeholder are implemented. Repository scanning and every broader runtime, API, SDK, plugin, workflow, and security capability remain target behavior unless explicitly marked otherwise.
+> **Status: target architecture with an initial CLI contract implementation.** The root Go module, Cobra-based CLI adapter, local analysis placeholder, bounded filesystem discovery, and broad filename-based technology detection are implemented internally. Discovery and detection are not yet connected to CLI reports; every broader runtime, API, SDK, plugin, workflow, and security capability remains target behavior unless explicitly marked otherwise.
 
 Related documents:
 
 - [Security architecture](security.md)
 - [Testing strategy](testing.md)
+- [Technology detection architecture](detection.md)
 - [Architecture decision records](decisions/README.md)
 
 ## 1. Status and scope
 
-The repository contains the canonical directory scaffold, project metadata, branding, documentation, one root Go module, and a tested `iatros analyze` contract stub. It does not yet contain repository scanning, public schemas, deployment configuration, CI workflows, or releases.
+The repository contains the canonical directory scaffold, project metadata, branding, documentation, one root Go module, a tested `iatros analyze` contract stub, a bounded filesystem inventory service, and a broad internal technology detector. These internal capabilities are not yet part of the user-visible command result. The repository does not yet contain readiness rules, public schemas, deployment configuration, CI workflows, or releases.
 
 This document establishes:
 
