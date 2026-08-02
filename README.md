@@ -114,7 +114,7 @@ go build -o .\bin\iatros.exe .\cmd\iatros
 .\bin\iatros.exe analyze --format json .
 ```
 
-Until filesystem discovery is implemented, `analyze` returns the documented JSON or text placeholder and exits with code `4`. It validates the selected directory but does not traverse it, read its contents, access the network, or modify files.
+Until internal discovery and marker detection are connected to the CLI analyzer, `analyze` returns the documented JSON or text placeholder and exits with code `4`. The runnable command validates the selected directory but does not invoke those internal capabilities, read repository contents, access the network, or modify files.
 
 ## Contributing
 
