@@ -7,12 +7,11 @@ Architecture decision records (ADRs) capture consequential choices, their contex
 | ID | Decision | Status | Date | Supersedes |
 | --- | --- | --- | --- | --- |
 | [ADR-0001](0001-capability-boundaries-and-dependency-direction.md) | Capability boundaries and dependency direction | Accepted | 2026-07-31 | — |
-| [ADR-0002](0002-single-community-core-with-optional-overlays.md) | Single Community core with optional overlays | Accepted | 2026-07-31 | — |
+| [ADR-0002](0002-single-core-with-optional-subscriptions.md) | Single provider-neutral core with optional subscriptions | Accepted | 2026-07-31 | — |
 | [ADR-0003](0003-start-with-one-go-module.md) | Start with one Go module | Accepted | 2026-07-31 | — |
 | [ADR-0004](0004-control-state-changing-operations.md) | Control state-changing operations | Proposed | 2026-07-31 | — |
 | [ADR-0005](0005-use-cobra-as-the-cli-adapter.md) | Use Cobra as the CLI adapter | Accepted | 2026-08-01 | — |
-| [ADR-0006](0006-use-explicit-unified-scaling-profiles.md) | Use explicit unified scaling profiles | Accepted | 2026-08-03 | — |
-| [ADR-0007](0007-use-bounded-repository-owned-ignore-rules.md) | Use bounded repository-owned ignore rules | Accepted | 2026-08-03 | — |
+| [ADR-0006](0006-version-private-core-contracts.md) | Version private core contracts independently from public APIs | Accepted | 2026-08-03 | — |
 
 ## Status lifecycle
 

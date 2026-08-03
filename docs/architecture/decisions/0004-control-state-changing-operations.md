@@ -93,6 +93,7 @@ After acceptance, implementation must provide executable tests for:
 
 ## References
 
+- [IATROS Product Contract](../../product/product-contract.md)
 - [IATROS target architecture](../README.md)
 - [Security architecture](../security.md)
 - [Testing strategy](../testing.md)

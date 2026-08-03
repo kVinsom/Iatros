@@ -9,6 +9,7 @@
 
 Related documents:
 
+- [IATROS Product Contract](product-contract.md)
 - [IATROS target architecture](../architecture/README.md)
 - [Security architecture](../architecture/security.md)
 - [Testing strategy](../architecture/testing.md)
