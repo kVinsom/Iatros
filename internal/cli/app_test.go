@@ -30,7 +30,8 @@ func TestHelpCommands(t *testing.T) {
 				t.Fatalf("exit code = %d, want %d", result.exitCode, ExitSuccess)
 			}
 			if !strings.Contains(result.stdout, "Usage:") ||
-				!strings.Contains(result.stdout, "analyze") {
+				!strings.Contains(result.stdout, "analyze") ||
+				!strings.Contains(result.stdout, "topology") {
 				t.Fatalf("stdout does not contain command help:\n%s", result.stdout)
 			}
 			if result.stderr != "" {
@@ -78,7 +79,7 @@ func TestVersionNormalization(t *testing.T) {
 			exitCode := Run(
 				t.Context(),
 				test.version,
-				analysis.NewLocalStub(),
+				Services{Analysis: analysis.NewLocalStub()},
 				[]string{"version"},
 				&stdout,
 				&stderr,
@@ -107,6 +108,8 @@ func TestUsageErrors(t *testing.T) {
 	}{
 		{name: "unsupported format", args: []string{"analyze", "--format", "yaml", "."}},
 		{name: "too many targets", args: []string{"analyze", ".", "."}},
+		{name: "unsupported topology format", args: []string{"topology", "--format", "yaml", "."}},
+		{name: "too many topology targets", args: []string{"topology", ".", "."}},
 		{name: "unknown command", args: []string{"unknown"}},
 	}
 
@@ -138,7 +141,7 @@ func TestRunDetectsCommandOutputFailures(t *testing.T) {
 		exitCode := Run(
 			t.Context(),
 			"test-version",
-			analysis.NewLocalStub(),
+			Services{Analysis: analysis.NewLocalStub()},
 			args,
 			failingWriter{err: writeErr},
 			&stderr,
@@ -160,7 +163,7 @@ func TestRunDetectsUsageOutputFailure(t *testing.T) {
 	exitCode := Run(
 		t.Context(),
 		"test-version",
-		analysis.NewLocalStub(),
+		Services{Analysis: analysis.NewLocalStub()},
 		[]string{"unknown"},
 		&stdout,
 		failingWriter{err: errors.New("write failed")},
@@ -178,7 +181,7 @@ func TestRunHandlesNilWriters(t *testing.T) {
 		exitCode := Run(
 			t.Context(),
 			"test-version",
-			analysis.NewLocalStub(),
+			Services{Analysis: analysis.NewLocalStub()},
 			args,
 			nil,
 			nil,
@@ -203,7 +206,7 @@ func runCLI(t *testing.T, analyzer Analyzer, args ...string) commandResult {
 	exitCode := Run(
 		t.Context(),
 		"test-version",
-		analyzer,
+		Services{Analysis: analyzer},
 		args,
 		&stdout,
 		&stderr,

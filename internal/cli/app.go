@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/kVinsom/Iatros/internal/analysis"
+	"github.com/kVinsom/Iatros/internal/topology"
 
 	"github.com/spf13/cobra"
 )
@@ -20,18 +21,29 @@ type Analyzer interface {
 	Analyze(context.Context, analysis.Request) (analysis.Report, error)
 }
 
+// TopologyAnalyzer is the repository-topology behavior consumed by the CLI adapter.
+type TopologyAnalyzer interface {
+	Analyze(context.Context, analysis.Request) (topology.Model, error)
+}
+
+// Services contains the provider-neutral behaviors exposed by the CLI.
+type Services struct {
+	Analysis Analyzer
+	Topology TopologyAnalyzer
+}
+
 // Run executes a fresh command tree and maps its outcome to a process exit code.
 func Run(
 	ctx context.Context,
 	version string,
-	analyzer Analyzer,
+	services Services,
 	args []string,
 	stdout io.Writer,
 	stderr io.Writer,
 ) int {
 	stdoutTracker := newWriteErrorTracker(stdout)
 	stderrTracker := newWriteErrorTracker(stderr)
-	root := newRootCommand(version, analyzer)
+	root := newRootCommand(version, services)
 	if args == nil {
 		args = []string{}
 	}
@@ -76,7 +88,7 @@ func Run(
 	return ExitUsage
 }
 
-func newRootCommand(version string, analyzer Analyzer) *cobra.Command {
+func newRootCommand(version string, services Services) *cobra.Command {
 	version = strings.TrimSpace(version)
 	if version == "" {
 		version = defaultVersion
@@ -97,7 +109,8 @@ func newRootCommand(version string, analyzer Analyzer) *cobra.Command {
 	root.SetVersionTemplate("iatros {{.Version}}\n")
 	root.CompletionOptions.DisableDefaultCmd = true
 	root.AddCommand(
-		newAnalyzeCommand(analyzer),
+		newAnalyzeCommand(services.Analysis),
+		newTopologyCommand(services.Topology),
 		newVersionCommand(version),
 	)
 

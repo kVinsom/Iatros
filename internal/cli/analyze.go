@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/kVinsom/Iatros/internal/analysis"
 
@@ -24,19 +23,11 @@ func newAnalyzeCommand(analyzer Analyzer) *cobra.Command {
 		Short: "Analyze a local repository directory.",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if options.format != formatText && options.format != formatJSON {
-				return fmt.Errorf(
-					"unsupported format %q; supported formats are text and json",
-					options.format,
-				)
+			if err := validateReportFormat(options.format); err != nil {
+				return err
 			}
 
-			root := "."
-			if len(args) == 1 {
-				root = args[0]
-			}
-
-			report, analyzeErr := analyze(cmd.Context(), analyzer, root)
+			report, analyzeErr := analyze(cmd.Context(), analyzer, commandTarget(args))
 			if err := writeReport(cmd.OutOrStdout(), options.format, report); err != nil {
 				return newExitError(ExitFailure, "could not write analysis report")
 			}
@@ -71,8 +62,11 @@ func analyze(ctx context.Context, analyzer Analyzer, root string) (analysis.Repo
 	if contextErr := ctx.Err(); contextErr != nil {
 		return analysis.NewCanceledReport(), contextErr
 	}
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+	if errors.Is(err, context.Canceled) {
 		return analysis.NewCanceledReport(), err
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return analysis.NewAnalysisFailedReport(), err
 	}
 	if report.Validate() != nil || !outcomeMatchesReport(report, err) {
 		return analysis.NewAnalysisFailedReport(), analysis.ErrInvalidReport

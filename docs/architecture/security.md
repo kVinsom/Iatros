@@ -1,16 +1,26 @@
 # IATROS Security Architecture
 
 > [!IMPORTANT]
-> **Status: proposed baseline with initial local safeguards.** The current CLI stub validates one local directory through metadata and a directory handle, rejects selected link targets and explicit Windows network or device paths, exposes only a relative report root, and performs no repository traversal, content reads, network access, or target writes. A separate internal discovery component now performs bounded metadata-only traversal but is not connected to CLI reports. All broader controls remain target requirements unless explicitly marked otherwise.
+> **Status: proposed baseline with implemented local-analysis safeguards.** The current CLI validates and analyzes one local directory through a confined directory handle, rejects selected link targets and explicit Windows network or device paths, and exposes only a relative report root. `iatros analyze` performs bounded metadata-only traversal. `iatros topology` additionally performs allowlisted, byte-bounded manifest reads through the same confinement model. Neither workflow uses the network, executes commands, or writes to the target. All broader controls remain target requirements unless explicitly marked otherwise.
 
 The internal discovery component retains one confined `os.Root`, skips link and irregular entries, streams directory entries in bounded chunks, caps retained paths and issues, and never opens regular files. Filesystem access failures become root-relative structured issues without exposing raw operating-system errors.
 
 The internal technology detector consumes only the validated root-relative inventory. It sorts and deduplicates paths, bounds retained evidence, rejects unsafe evidence paths, honors cancellation, and does not read file content or execute detected package managers and infrastructure tools.
 
+The internal readiness evaluator consumes only bounded inventory metadata and minimal technology identities. It suppresses every absence-based rule for partial discovery, validates evidence inputs, and produces fixed English remediation text without reading repository content or invoking detected tools.
+
+The internal manifest analyzer opens only exact registered manifest filenames from the bounded inventory. It rejects unsafe paths, links, irregular files, unstable file identities, duplicate JSON keys, trailing JSON, XML directives and DTDs, multiple XML roots, excessive nesting, oversized content, and malformed backend output. It processes one bounded document at a time, redacts remote and local dependency references, and never exposes raw parser or operating-system errors in diagnostics. Parser backends have no filesystem or network capability beyond the supplied reader.
+
+The internal topology builder performs no I/O. It resolves workspace declarations only against bounded known project roots, rejects repository escapes and unsupported pattern semantics, preserves ambiguous dependency candidates instead of selecting one, and bounds projects, workspaces, components, declarations, matches, dependencies, targets, values, duration, and diagnostics.
+
+The topology CLI adapter validates the complete mapped report before rendering it. Malformed or unsafe internal output is replaced by a canonical failed report. Text and JSON expose no absolute target, timestamp, raw manifest content, or raw operating-system error, and all nested path collections remain repository-relative.
+
 See also:
 
 - [Target architecture](README.md)
 - [Testing strategy](testing.md)
+- [Manifest analysis architecture](manifest-analysis.md)
+- [Repository topology architecture](topology.md)
 - [ADR-0004: Control state-changing operations](decisions/0004-control-state-changing-operations.md)
 
 ## 1. Security objectives

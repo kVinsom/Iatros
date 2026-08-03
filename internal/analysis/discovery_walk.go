@@ -8,6 +8,8 @@ import (
 	"path"
 	"slices"
 	"strings"
+
+	"github.com/kVinsom/Iatros/internal/repositorypath"
 )
 
 const directoryReadChunkSize = 128
@@ -140,20 +142,27 @@ func (w *discoveryWalker) readDirectory(directory string) ([]fs.DirEntry, error)
 		return nil, directoryFile.Close()
 	}
 
-	entries := make([]fs.DirEntry, 0, min(directoryReadChunkSize, w.limits.MaxEntriesPerDirectory+1))
+	entries := make(
+		[]fs.DirEntry,
+		0,
+		min(directoryReadChunkSize, w.limits.MaxEntriesPerDirectory),
+	)
 	for {
-		remaining := w.limits.MaxEntriesPerDirectory + 1 - len(entries)
-		chunk, readErr := reader.ReadDir(min(directoryReadChunkSize, remaining))
-		entries = append(entries, chunk...)
-		if len(entries) > w.limits.MaxEntriesPerDirectory {
+		remaining := w.limits.MaxEntriesPerDirectory - len(entries)
+		readSize := min(directoryReadChunkSize, remaining)
+		if readSize == 0 {
+			readSize = 1
+		}
+		chunk, readErr := reader.ReadDir(readSize)
+		if len(chunk) > remaining {
 			w.addIssue(DiscoveryIssue{
 				Code:    DiscoveryIssueDirectoryEntryLimit,
 				Path:    directory,
 				Message: "The directory entry limit was reached; its entries were skipped.",
 			})
-			w.stopped = true
 			return nil, directoryFile.Close()
 		}
+		entries = append(entries, chunk...)
 		if errors.Is(readErr, io.EOF) {
 			break
 		}
@@ -218,10 +227,5 @@ func unreadablePathIssue(relativePath string) DiscoveryIssue {
 }
 
 func ignoredDiscoveryEntry(name string) bool {
-	switch name {
-	case ".git", ".hg", ".svn":
-		return true
-	default:
-		return false
-	}
+	return repositorypath.IsExcludedDirectoryName(name)
 }

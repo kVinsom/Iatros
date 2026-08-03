@@ -21,6 +21,14 @@ func (r markerRule) matches(file string) bool {
 }
 
 func matchesPathSuffix(pattern, file string) bool {
+	if !strings.ContainsAny(pattern, "*?[\\") {
+		return hasPathSegmentSuffix(file, pattern)
+	}
+	if !strings.ContainsRune(pattern, '/') {
+		matched, err := path.Match(pattern, path.Base(file))
+		return err == nil && matched
+	}
+
 	for candidate := file; ; {
 		matched, err := path.Match(pattern, candidate)
 		if err == nil && matched {
@@ -32,6 +40,14 @@ func matchesPathSuffix(pattern, file string) bool {
 		}
 		candidate = candidate[separator+1:]
 	}
+}
+
+func hasPathSegmentSuffix(file, suffix string) bool {
+	if len(file) < len(suffix) {
+		return false
+	}
+	offset := len(file) - len(suffix)
+	return file[offset:] == suffix && (offset == 0 || file[offset-1] == '/')
 }
 
 var defaultMarkerRules = []markerRule{

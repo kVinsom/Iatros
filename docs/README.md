@@ -1,7 +1,7 @@
 # IATROS Documentation
 
 > [!IMPORTANT]
-> IATROS is in early implementation. A local Cobra-based CLI contract stub is runnable, while bounded filesystem discovery and broad filename-based technology detection exist internally without CLI integration. Readiness rules and broader target capabilities remain unimplemented.
+> IATROS is in early implementation. A local Cobra-based CLI runs bounded metadata discovery, technology detection, readiness evaluation, and deterministic reporting. The same CLI exposes a separate bounded repository-topology report built from project boundaries and safely parsed manifests.
 
 ## Product specifications
 
@@ -10,7 +10,11 @@
 
 ## Architecture
 
+- [Manifest analysis architecture](architecture/manifest-analysis.md) - bounded content access, supported formats, normalized facts, parser safety, resource profiles, and backend replacement rules.
+- [Repository topology architecture](architecture/topology.md) - project/component association, workspace membership, direct dependency resolution, limits, and partial-state rules.
 - [Technology detection architecture](architecture/detection.md) — internal marker catalog, evidence rules, categories, limits, and extension requirements.
+- [Project and workspace boundary model](architecture/project-model.md) — internal monorepository boundaries, strong markers, workspace membership, limits, and deferred enrichment.
+- [Repository readiness architecture](architecture/readiness.md) — internal absence rules, suppression policy, supported test evidence, and deferred checks.
 - [Target architecture](architecture/README.md) — system context, component boundaries, domain map, dependency rules, planned runtime roles, conceptual flows, and open decisions.
 - [Security architecture](architecture/security.md) — trust boundaries, controlled effects, identity, secrets, plugin and AI isolation, auditability, and resilience requirements.
 - [Testing strategy](architecture/testing.md) — test layers, contract verification, AI evaluation, security cases, and future quality gates.
@@ -26,7 +30,7 @@ Architecture documents use the following labels:
 | **Target** | Intended behavior or responsibility that has not been implemented yet. |
 | **Proposed** | A concrete direction that still requires an accepted decision. |
 | **TBD** | An intentionally open choice that must not be silently assumed. |
-| **Implemented** | Verified behavior present in source and tests. Currently limited to the CLI contract stub, internal bounded discovery, and internal technology detection documented in PS-0001. |
+| **Implemented** | Verified behavior present in source and tests. Currently includes CLI local-analysis and repository-topology workflows plus their internal project, manifest, and topology pipelines. |
 
 ## Documentation rules
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"path"
 	"reflect"
 	"slices"
@@ -244,6 +245,70 @@ func TestMarkerDetectorBoundsEvidenceDeterministically(t *testing.T) {
 	}
 }
 
+func TestMarkerDetectorAvoidsLimitSizedEvidenceAllocation(t *testing.T) {
+	t.Parallel()
+
+	limits := DefaultLimits()
+	limits.MaxEvidencePerTechnology = math.MaxInt
+	detector := newTestDetector(t, limits)
+	results, err := detector.Detect(t.Context(), []string{"service/main.go"})
+	if err != nil {
+		t.Fatalf("Detect() error = %v", err)
+	}
+
+	technology := findTechnology(t, results, "go")
+	if !slices.Equal(technology.Evidence, []string{"service/main.go"}) ||
+		technology.EvidenceTruncated {
+		t.Fatalf("technology = %#v, want complete evidence", technology)
+	}
+	if capacity := cap(technology.Evidence); capacity > initialEvidenceCapacity {
+		t.Fatalf(
+			"evidence capacity = %d, want at most %d",
+			capacity,
+			initialEvidenceCapacity,
+		)
+	}
+}
+
+func TestMatchesPathSuffixPreservesCatalogSemantics(t *testing.T) {
+	t.Parallel()
+
+	for _, rule := range defaultMarkerRules {
+		for _, pattern := range rule.patterns {
+			fixture := markerPatternFixture(pattern)
+			candidates := []string{
+				fixture,
+				"nested/" + fixture,
+				"deeply/nested/" + fixture,
+				fixture + ".backup",
+				"nested/unrelated-" + path.Base(fixture),
+			}
+			for index, candidate := range candidates {
+				got := matchesPathSuffix(pattern, candidate)
+				want := referencePathSuffixMatch(pattern, candidate)
+				if index < 3 && !want {
+					t.Fatalf(
+						"rule %q pattern %q does not match generated nested fixture %q",
+						rule.id,
+						pattern,
+						candidate,
+					)
+				}
+				if got != want {
+					t.Fatalf(
+						"rule %q pattern %q file %q matched %t, want %t",
+						rule.id,
+						pattern,
+						candidate,
+						got,
+						want,
+					)
+				}
+			}
+		}
+	}
+}
+
 func TestMarkerDetectorRejectsUnsafeEvidencePaths(t *testing.T) {
 	t.Parallel()
 
@@ -317,6 +382,23 @@ func TestMarkerDetectorIgnoresUnreliableGenericNames(t *testing.T) {
 	}
 	if len(results) != 0 {
 		t.Fatalf("results = %#v, want no unsupported inference", results)
+	}
+}
+
+func TestMarkerDetectorIgnoresGeneratedAndDependencyDirectories(t *testing.T) {
+	t.Parallel()
+
+	detector := newTestDetector(t, DefaultLimits())
+	results, err := detector.Detect(t.Context(), []string{
+		"node_modules/dependency/main.go",
+		"services/api/.venv/library/main.py",
+		"infra/.terraform/modules/network/main.tf",
+	})
+	if err != nil {
+		t.Fatalf("Detect() error = %v", err)
+	}
+	if len(results) != 0 {
+		t.Fatalf("results = %#v, want generated evidence ignored", results)
 	}
 }
 
@@ -440,6 +522,24 @@ func knownCategory(category Category) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func markerPatternFixture(pattern string) string {
+	return strings.ReplaceAll(pattern, "*", "sample")
+}
+
+func referencePathSuffixMatch(pattern, file string) bool {
+	for candidate := file; ; {
+		matched, err := path.Match(pattern, candidate)
+		if err == nil && matched {
+			return true
+		}
+		separator := strings.IndexByte(candidate, '/')
+		if separator < 0 {
+			return false
+		}
+		candidate = candidate[separator+1:]
 	}
 }
 

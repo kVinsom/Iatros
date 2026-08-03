@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -74,17 +75,20 @@ func TestDiscoverFilesystemReturnsDeterministicInventory(t *testing.T) {
 	t.Parallel()
 
 	filesystem := fstest.MapFS{
-		".git/config":        &fstest.MapFile{Data: []byte("ignored")},
-		".gitignore":         &fstest.MapFile{Data: []byte("ignored/\n")},
-		".hg/store":          &fstest.MapFile{Data: []byte("ignored")},
-		".svn/entries":       &fstest.MapFile{Data: []byte("ignored")},
-		"cmd/main.go":        &fstest.MapFile{Data: []byte("package main")},
-		"docs/README.md":     &fstest.MapFile{Data: []byte("documentation")},
-		"go.mod":             &fstest.MapFile{Data: []byte("module example")},
-		"ignored/kept.txt":   &fstest.MapFile{Data: []byte("kept")},
-		"link":               &fstest.MapFile{Mode: fs.ModeSymlink | 0o777},
-		"nested/.git/config": &fstest.MapFile{Data: []byte("ignored")},
-		"nested/app.go":      &fstest.MapFile{Data: []byte("package nested")},
+		".git/config":                   &fstest.MapFile{Data: []byte("ignored")},
+		".gradle/cache.bin":             &fstest.MapFile{Data: []byte("ignored")},
+		".gitignore":                    &fstest.MapFile{Data: []byte("ignored/\n")},
+		".hg/store":                     &fstest.MapFile{Data: []byte("ignored")},
+		".svn/entries":                  &fstest.MapFile{Data: []byte("ignored")},
+		".terraform/main.tf":            &fstest.MapFile{Data: []byte("ignored")},
+		"cmd/main.go":                   &fstest.MapFile{Data: []byte("package main")},
+		"docs/README.md":                &fstest.MapFile{Data: []byte("documentation")},
+		"go.mod":                        &fstest.MapFile{Data: []byte("module example")},
+		"ignored/kept.txt":              &fstest.MapFile{Data: []byte("kept")},
+		"link":                          &fstest.MapFile{Mode: fs.ModeSymlink | 0o777},
+		"nested/.git/config":            &fstest.MapFile{Data: []byte("ignored")},
+		"nested/app.go":                 &fstest.MapFile{Data: []byte("package nested")},
+		"node_modules/pkg/package.json": &fstest.MapFile{Data: []byte("ignored")},
 	}
 
 	first, err := discoverFilesystem(t.Context(), filesystem, DefaultDiscoveryLimits())
@@ -239,6 +243,53 @@ func TestDiscoverFilesystemEnforcesWorkLimits(t *testing.T) {
 			}
 			assertSingleDiscoveryIssue(t, inventory, test.wantIssueCode, test.wantIssuePath)
 		})
+	}
+}
+
+func TestDiscoverFilesystemContinuesAfterNestedDirectoryEntryLimit(t *testing.T) {
+	t.Parallel()
+
+	filesystem := fstest.MapFS{
+		"a/one.txt":   &fstest.MapFile{},
+		"a/three.txt": &fstest.MapFile{},
+		"a/two.txt":   &fstest.MapFile{},
+		"z.txt":       &fstest.MapFile{},
+	}
+	limits := DefaultDiscoveryLimits()
+	limits.MaxEntriesPerDirectory = 2
+
+	inventory, err := discoverFilesystem(t.Context(), filesystem, limits)
+	if err != nil {
+		t.Fatalf("discoverFilesystem() error = %v", err)
+	}
+	if !slices.Equal(inventory.Directories, []string{".", "a"}) {
+		t.Fatalf("Directories = %#v, want root and skipped directory", inventory.Directories)
+	}
+	if !slices.Equal(inventory.Files, []string{"z.txt"}) {
+		t.Fatalf("Files = %#v, want safe sibling after skipped directory", inventory.Files)
+	}
+	assertSingleDiscoveryIssue(t, inventory, DiscoveryIssueDirectoryEntryLimit, "a")
+}
+
+func TestDiscoverFilesystemAcceptsMaximumDirectoryEntryLimit(t *testing.T) {
+	t.Parallel()
+
+	limits := DefaultDiscoveryLimits()
+	limits.MaxEntriesPerDirectory = math.MaxInt
+	filesystem := fstest.MapFS{
+		"a.txt": &fstest.MapFile{},
+		"b.txt": &fstest.MapFile{},
+	}
+
+	inventory, err := discoverFilesystem(t.Context(), filesystem, limits)
+	if err != nil {
+		t.Fatalf("discoverFilesystem() error = %v", err)
+	}
+	if !slices.Equal(inventory.Files, []string{"a.txt", "b.txt"}) {
+		t.Fatalf("Files = %#v, want both files", inventory.Files)
+	}
+	if inventory.Partial || len(inventory.Issues) != 0 {
+		t.Fatalf("inventory = %#v, want complete inventory", inventory)
 	}
 }
 
