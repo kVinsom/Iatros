@@ -5,7 +5,7 @@
 <h1 align="center">IATROS DevOps</h1>
 
 <p align="center">
-  An early-stage open-source project exploring AI-assisted automation for modern DevOps workflows.
+  Provider-neutral DevOps automation with a free local foundation and optional AI assistance.
 </p>
 
 <p align="center">
@@ -15,25 +15,28 @@
 </p>
 
 > [!IMPORTANT]
-> **Project status:** Early implementation. The repository contains a runnable Cobra-based CLI contract stub for local repository analysis. The command validates a local directory and returns an explicit `not_implemented` report; it does not scan repository content yet. All broader capabilities remain planned, not released.
+> **Project status:** Early implementation. The MVP uses the free local Basic plan without AI; its current approved user-facing slice is read-only repository analysis. The repository contains a runnable Cobra-based CLI contract stub plus stable private core contracts for project topology, configuration, schema compatibility, and lifecycle results. All broader analysis and deterministic architecture-generation capabilities remain planned until source and tests prove them.
 
 ## Overview
 
-IATROS DevOps is intended to help teams build, deploy, operate, troubleshoot, and improve software through natural-language DevOps workflows. The long-term goal is to connect repository context and operational intent with tools that can analyze projects, prepare infrastructure and delivery artifacts, validate proposed changes, and assist with day-to-day operations.
+IATROS DevOps is intended to help users build, deploy, operate, troubleshoot, and improve software through deterministic workflows with optional AI assistance. The long-term goal is to connect repository context and operational intent with tools that can analyze projects, prepare infrastructure and delivery artifacts, validate proposed changes, and assist with day-to-day operations.
 
 The proposed architecture separates provider-neutral domain logic from vendor-specific integrations. Stable contracts are intended to connect the core, public interfaces, plugins, and optional extensions without coupling the entire system to a particular cloud, source-control platform, observability backend, or AI provider.
 
 ## Planned capabilities
 
 - **Project understanding:** discover repositories, model topology, and assess production readiness.
-- **AI-assisted planning:** use project context to support implementation planning, risk analysis, and root-cause analysis.
-- **Delivery and infrastructure generation:** prepare CI/CD pipelines, infrastructure and container configurations, scripts, and operational documentation.
+- **Deterministic architecture generation:** use validated templates, rules, catalogs, and open plugins to prepare Docker and supported DevOps architecture locally in Basic.
+- **Optional AI assistance:** add cloud AI in Pro or cloud/local AI in Enterprise for planning, generation, risk analysis, diagnosis, and remediation.
+- **Delivery and infrastructure generation:** prepare CI/CD pipelines, infrastructure, orchestration, observability, security, container configurations, scripts, and operational documentation.
 - **Validation and diagnostics:** check proposed artifacts and provide an IATROS Doctor workflow for actionable findings.
 - **Deployment operations:** assist with promotion, rollback, GitOps workflows, and drift detection.
 - **Operational insight:** bring together observability, reliability, security, and cost-awareness workflows.
-- **Extensible integrations:** connect external tools and providers through stable plugin and extension contracts.
+- **Extensible integrations:** create open plugins in every plan and closed private plugins in Enterprise through stable contracts.
 
-These items describe the intended product direction. Only the initial CLI contract stub is currently available.
+These items describe the intended product direction. Only the initial CLI contract stub is currently user-facing; the [stable core domain contracts](docs/product/0002-core-domain-contracts.md) are implemented internally for later workflows.
+
+The [IATROS Product Contract](docs/product/product-contract.md) defines the final product boundary, the Analyze → Plan → Generate → Validate → Deploy → Monitor → Fix lifecycle, and the Basic, Pro, and Enterprise plans. Basic is free, local, and AI-free; Pro adds cloud AI; Enterprise adds cloud or local AI plus closed plugins. It separates long-term commitments from currently released behavior.
 
 The first approved implementation slice is [local repository analysis](docs/product/0001-local-repository-analysis.md): a local-only, read-only `iatros analyze` command with deterministic text and JSON contracts.
 
@@ -52,15 +55,15 @@ The complete architecture package is available in [`docs/`](docs/README.md), inc
 | [`deploy/`](deploy/) | Deployment resources for IATROS itself. |
 | [`docs/`](docs/) | Product specifications, architecture, security, testing, and decision records. |
 | [`examples/`](examples/) | Planned CLI, SDK, and plugin usage examples. |
-| [`extensions/`](extensions/) | Reserved Commercial and Enterprise overlays; currently placeholders only. |
+| [`extensions/`](extensions/) | Reserved Pro and Enterprise product overlays; customer-specific closed plugin source may be distributed separately. |
 | [`internal/`](internal/) | Private, provider-neutral application and domain logic. |
-| [`plugins/`](plugins/) | Planned first-party adapters grouped by capability. |
+| [`plugins/`](plugins/) | Planned open first-party adapters grouped by capability. |
 | [`sdk/`](sdk/) | Intended public Go client, plugin and extension contracts, and a plugin-testing toolkit. |
 | [`test/`](test/) | Cross-component integration and end-to-end test suites. |
 
 The intended dependency rules are:
 
-1. Maintain a single Community core that remains usable without optional Commercial or Enterprise extensions; do not duplicate core packages across editions.
+1. Maintain one provider-neutral core that remains fully usable through Basic without Pro or Enterprise capabilities; do not duplicate core packages by subscription.
 2. Keep business logic out of `cmd`; executable entry points should only compose applications.
 3. Keep `internal` independent from concrete plugins and optional extensions.
 4. Plugins should depend on stable contracts in `sdk/plugin` and, where necessary, `api` or `sdk/client`; optional extensions should implement `sdk/extension` or `sdk/plugin`.
@@ -74,6 +77,7 @@ The intended dependency rules are:
 | Directory scaffold | Present |
 | Project identity, logo, and license | Present |
 | First product specification | Approved; contract stub implemented, analysis in progress |
+| Stable core domain contracts | Private project and workflow schema `1.0` implemented and tested |
 | Target architecture, security, and testing documentation | Present |
 | Application source and Go module | Root module and initial CLI source present |
 | Runnable CLI, services, and applications | CLI contract stub available; other runtimes not implemented |

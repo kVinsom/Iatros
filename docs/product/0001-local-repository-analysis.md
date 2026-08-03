@@ -9,6 +9,7 @@
 
 Related documents:
 
+- [IATROS Product Contract](product-contract.md)
 - [IATROS target architecture](../architecture/README.md)
 - [Security architecture](../architecture/security.md)
 - [Testing strategy](../architecture/testing.md)
@@ -350,7 +351,7 @@ The product specification is satisfied when:
 
 ## 17. Deferred decisions
 
-- release and Enterprise discovery-limit profiles and their configuration surface;
+- release and paid-subscription discovery-limit profiles and their configuration surface;
 - complete `.gitignore` semantics and their configuration policy;
 - hidden-file policy outside known sensitive paths;
 - nested project and monorepo boundaries;
