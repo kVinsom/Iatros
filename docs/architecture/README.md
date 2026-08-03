@@ -5,6 +5,7 @@
 
 Related documents:
 
+- [IATROS Product Contract](../product/product-contract.md)
 - [Security architecture](security.md)
 - [Testing strategy](testing.md)
 - [Technology detection architecture](detection.md)
@@ -33,7 +34,7 @@ It deliberately does not choose concrete vendors, protocols, storage engines, qu
 
 ## 2. Goals
 
-IATROS aims to provide a natural-language-assisted DevOps control layer that can eventually:
+IATROS aims to provide a deterministic DevOps control layer with optional AI assistance that can eventually:
 
 - understand repositories and their operational topology;
 - produce evidence-based plans, findings, and candidate artifacts;
@@ -77,11 +78,21 @@ flowchart LR
 
 External repositories, provider responses, plugin output, and model output are data sources, not trusted authority. They cannot expand permissions or bypass policy.
 
+Plan selection changes composition and permitted boundaries, not core semantics:
+
+- Basic runs the core locally without AI or a required IATROS-hosted service; an installed open plugin may access only its declared destination for an explicit request.
+- Pro adds an explicit cloud AI boundary and sends only selected, minimized project context under the applicable data controls.
+- Enterprise adds a choice of cloud or company-controlled local AI and may load entitled closed plugins from private distribution channels.
+
+AI placement does not move authorization into the model. Open and closed plugins remain outside the core trust boundary and receive only task-scoped capabilities. The canonical product rules are defined in the [IATROS Product Contract](../product/product-contract.md#33-boundary-by-plan).
+
+Paid subscription entitlement is also outside provider-neutral domain behavior. Composition and admission layers expose a capability as available or unavailable; they do not teach core use cases about pricing or billing providers. Free Basic requires no paid entitlement. Pro or Enterprise downgrade and expiry return the product to Basic without deleting local artifacts or lifecycle evidence and without abandoning an already-started external effect before a safe terminal outcome.
+
 ## 4. Architectural principles and invariants
 
 ### Established
 
-1. **One Community core.** Optional Commercial or Enterprise capabilities extend the same core instead of copying it into edition-specific trees.
+1. **One provider-neutral core.** Free Basic uses the core without AI or paid-entitlement dependencies. Pro cloud AI and Enterprise local-AI and closed-plugin capabilities extend the same core instead of copying it into subscription-specific trees.
 2. **Provider-neutral domains.** `internal/<capability>` is reserved for product logic; concrete vendors belong under `plugins/`.
 3. **Thin composition roots.** `cmd/*` wires applications and runtime dependencies but does not contain business logic.
 4. **Stable public boundaries.** `api/` is reserved for public wire contracts and `sdk/` for public client, plugin, extension, and test contracts.
@@ -94,7 +105,7 @@ External repositories, provider responses, plugin output, and model output are d
 11. **Isolated CLI framework.** Cobra remains inside the CLI adapter; provider-neutral analysis and domain packages do not depend on it.
 12. **Scalable profiles and replaceable backends.** Core contracts must support conservative small-repository defaults and validated large-repository profiles. File size, count, memory, and time budgets remain injectable, while parser and processing implementations may be replaced behind consumer-owned interfaces when measured requirements justify a standard-library, third-party, generated, or streaming backend.
 
-These established constraints are recorded in [ADR-0001](decisions/0001-capability-boundaries-and-dependency-direction.md), [ADR-0002](decisions/0002-single-community-core-with-optional-overlays.md), [ADR-0003](decisions/0003-start-with-one-go-module.md), and [ADR-0005](decisions/0005-use-cobra-as-the-cli-adapter.md).
+These established constraints are recorded in [ADR-0001](decisions/0001-capability-boundaries-and-dependency-direction.md), [ADR-0002](decisions/0002-single-core-with-optional-subscriptions.md), [ADR-0003](decisions/0003-start-with-one-go-module.md), [ADR-0005](decisions/0005-use-cobra-as-the-cli-adapter.md), and [ADR-0006](decisions/0006-version-private-core-contracts.md).
 
 ### Proposed
 
@@ -109,11 +120,11 @@ These established constraints are recorded in [ADR-0001](decisions/0001-capabili
 | `api/*` | Public wire contracts. | No service implementation and no imports from `internal`. |
 | `sdk/client` | Public client contract and implementation surface. | Depends only on public contracts. |
 | `sdk/plugin` | Stable capability contract for provider adapters. | Must not expose private core packages. |
-| `sdk/extension` | Stable contract for optional product overlays. | Community remains usable without extensions. |
+| `sdk/extension` | Stable contract for optional product overlays. | Basic remains usable without Pro or Enterprise extensions. |
 | `sdk/plugintest` | Plugin conformance and testing toolkit. | Tests public behavior, not private implementation. |
 | `internal/*` | Provider-neutral application and domain logic. | Cannot import concrete plugins or extensions. |
-| `plugins/*` | Concrete external-system adapters. | Depend on public IATROS SDK/API contracts; may use the external SDK of the provider they adapt. |
-| `extensions/*` | Optional Commercial and Enterprise overlays. | Implement public contracts; no copied core. |
+| `plugins/*` | Open first-party external-system adapters. | Depend on public IATROS SDK/API contracts; may use the external SDK of the provider they adapt. |
+| `extensions/*` | Optional Pro and Enterprise product overlays. | Implement public contracts; no copied core and no requirement to store customer-specific closed plugin source in the public repository. |
 | `deploy/*` | Deployment resources for IATROS. | Not generated customer-project infrastructure. |
 | `test/*` | Cross-component integration and end-to-end tests. | Package tests remain next to packages. |
 
@@ -164,7 +175,7 @@ flowchart TB
 
 Concrete backend wiring belongs in `cmd/*`. Boundary adapters translate between public contracts and internal domain types without exposing private packages.
 
-How optional extensions are discovered and composed remains TBD. Community composition cannot require `extensions/*`; extensions register only through public extension or plugin contracts.
+How optional extensions are discovered and composed remains TBD. Basic composition cannot require `extensions/*`; extensions register only through public extension or plugin contracts.
 
 An inbound API adapter is wired by the applicable composition root, such as `cmd/controlplane` or `cmd/iatros`, but its implementation does not live in `cmd/*`. It translates `api/*` wire messages into internal use cases. The boundary-owning package, server package, protocol, and transport remain TBD.
 
@@ -271,11 +282,17 @@ These are logical responsibilities, not a commitment to five independently deplo
 
 ## 10. Conceptual workflows
 
-1. **Understand and plan:** product surface → project discovery → normalized project model → analysis → assistant → evidence, findings, and plan.
-2. **Generate and validate:** authorized intent → candidate artifact generation → Doctor validation → diff and diagnostics → review.
-3. **Execute a change:** policy authorization and any required approval → coordinator or worker → plugin or environment-local agent → external system → independent verification and audit evidence.
-4. **Operational diagnosis:** alert or prompt → observability and incident adapters → project topology and evidence → analysis and root-cause reasoning → recommended action.
-5. **Plugin lifecycle:** capability metadata → compatibility and trust checks → registration → invocation through SDK contracts → normalized result.
+The [IATROS Product Contract](../product/product-contract.md) is authoritative for the Analyze → Plan → Generate → Validate → Deploy → Monitor → Fix lifecycle and subscription responsibilities. The following workflows describe how the target architecture may realize that contract.
+
+1. **Inspect or advise:** Analyze, optionally followed by Plan, returns evidence and recommendations without target mutation.
+2. **Prepare:** Analyze → Plan → Generate → Validate returns exact candidate artifacts, diffs, provenance, and diagnostics.
+3. **Change:** Prepare → Deploy → Monitor applies an explicitly authorized candidate and verifies its postcondition.
+4. **Operate:** Monitor → Fix → Analyze → Plan converts an operational signal into fresh evidence and a remediation proposal.
+5. **Validate an external candidate:** Validate → Deploy → Monitor accepts a candidate only through normalized provenance and the same execution gates.
+6. **Reconcile:** Analyze → Plan → Generate when needed → Validate → Deploy → Monitor drives an indeterminate or drifted target toward an explicit verified postcondition.
+7. **Plugin lifecycle:** capability metadata → compatibility and trust checks → registration → invocation through SDK contracts → normalized result.
+
+Stage results are immutable. Changed evidence, scope, plan, candidate, validation, policy, approval, capability, or target state creates a new result and invalidates every affected downstream gate. The runtime representation may differ between immediate local workflows and durable distributed workflows, but terminal-outcome meanings remain identical.
 
 The target interaction keeps planning separate from state-changing authority. The sequence below illustrates a case in which policy requires human approval; a future non-interactive workflow must satisfy equivalent pre-authorized policy controls.
 
@@ -327,10 +344,10 @@ The approval and execution semantics remain proposed until [ADR-0004](decisions/
 | Public wire messages | `api/` | Versioning and transport are TBD. |
 | Client contract | `sdk/client` | Must remain independent from private packages. |
 | Plugin capabilities | `sdk/plugin` | Concrete providers translate to normalized contracts. |
-| Optional product capabilities | `sdk/extension` | Extensions remain optional to Community. |
+| Optional product capabilities | `sdk/extension` | Pro and Enterprise extensions remain optional to Basic. |
 | Audit evidence | Security/control-plane boundary | Storage and event schema are TBD. |
 
-Public contract publication creates compatibility obligations. Until a contract is implemented and released, the architecture must not invent versioned packages or schemas.
+The private contract rules are defined in [PS-0002](../product/0002-core-domain-contracts.md) and [ADR-0006](decisions/0006-version-private-core-contracts.md). Internal JSON field names support deterministic private persistence and tests; they are not a released public wire format. Public contract publication creates separate compatibility obligations. Until a public contract has a concrete consumer and approved specification, the architecture must not invent versioned API or SDK packages or expose `internal/` types directly.
 
 ## 12. Trust boundaries and target safety properties
 
@@ -364,7 +381,7 @@ See [Testing strategy](testing.md) for the target verification model.
 ## 14. Non-goals
 
 - Claiming target capabilities as runnable before source and tests prove them.
-- Duplicating the Community core for Commercial or Enterprise editions.
+- Duplicating the provider-neutral core for Pro or Enterprise subscriptions.
 - Putting vendor-specific code in `internal/`.
 - Choosing vendors, API versions, queues, databases, RPC, deployment topology, or plugin process model before requirements exist.
 - Turning every `cmd/` directory into a mandatory standalone service.
@@ -377,7 +394,7 @@ See [Testing strategy](testing.md) for the target verification model.
 
 The following choices remain intentionally unresolved:
 
-- whether the product remains local-first after the approved local repository-analysis slice or introduces a control plane for later workflows;
+- which remote workflows require a control plane after the local Basic MVP and when that boundary is introduced;
 - API transport, wire format, and versioning;
 - workflow persistence, queues, retries, idempotency, cancellation, and recovery;
 - authentication, authorization, resource hierarchy, tenancy, and audit model;
@@ -385,10 +402,10 @@ The following choices remain intentionally unresolved:
 - agent trust bootstrap, sandboxing, network policy, updates, and secret delivery;
 - approval, dry-run, policy, rollback, and break-glass semantics;
 - AI provider abstraction, permitted data classes, retention, provenance, evaluation, and cost controls;
-- canonical project-model schema and evolution;
+- translation and independent versioning between private core contracts and future public wire contracts;
 - artifact storage, integrity, provenance, and retention;
 - telemetry contracts, service-level objectives, and disaster-recovery targets;
-- Commercial and Enterprise registration, packaging, and distribution;
+- Pro AI and private Enterprise registration, packaging, licensing, and distribution;
 - criteria for independent SDK or plugin release lifecycles.
 
 Each consequential choice should become an ADR only when requirements and alternatives are concrete.
@@ -401,7 +418,7 @@ A change that affects architecture should answer:
 - Is the dependency direction allowed?
 - Does provider-specific logic remain outside the core?
 - Is a public contract actually required?
-- Can Community build and operate without optional extensions?
+- Can Basic build and operate without Pro, Enterprise, AI, or closed plugins?
 - Are untrusted input and effect boundaries explicit?
 - What evidence, validation, and audit data are required?
 - Which unit, contract, integration, security, or end-to-end tests prove the behavior?
@@ -414,9 +431,17 @@ A change that affects architecture should answer:
 | --- | --- |
 | **Capability** | A normalized operation exposed through a stable boundary. |
 | **Candidate artifact** | Generated content that has not yet been validated and authorized for use. |
-| **Community core** | The provider-neutral base that remains usable without optional overlays. |
+| **Basic** | The free local plan with deterministic DevOps architecture generation, no AI, and open plugin development. |
+| **Pro** | The paid individual plan that includes Basic and adds cloud AI while retaining open plugins. |
+| **Enterprise** | The paid company plan that includes Pro and adds cloud or local AI and closed private plugins. |
+| **IATROS core** | The single provider-neutral base used by Basic, Pro, and Enterprise without subscription-specific forks. |
+| **Entitlement** | An integrity-protected assertion that makes a Pro or Enterprise capability available; it is not target authorization. |
 | **Effect** | An operation that can change repository, infrastructure, provider, or product state. |
 | **Extension** | An optional product capability implemented through public extension or plugin contracts. |
+| **Open plugin** | A publicly distributable plugin available for creation and use in every plan. |
+| **Closed plugin** | An Enterprise-only plugin distributed privately to authorized company environments. |
 | **Plugin** | A concrete external-system adapter behind a stable capability contract. |
 | **Product surface** | A CLI, API, application, or protocol adapter through which a user or system interacts with IATROS. |
 | **Project model** | The canonical provider-neutral representation of a repository and its operational topology. |
+| **Schema version** | A canonical `major.minor` identity used to select compatibility or an explicit migration for persisted contract data. |
+| **Workflow result** | An immutable terminal-stage envelope containing identity, outcome, time, artifact references, diagnostics, and feature-owned data. |

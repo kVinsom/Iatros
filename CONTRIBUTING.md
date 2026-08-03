@@ -4,7 +4,7 @@ Thank you for helping improve IATROS. The project is still establishing its impl
 
 ## Before starting
 
-1. Read the [target architecture](docs/architecture/README.md) and relevant [architecture decisions](docs/architecture/decisions/README.md).
+1. Read the [product contract](docs/product/product-contract.md), [target architecture](docs/architecture/README.md), and relevant [architecture decisions](docs/architecture/decisions/README.md).
 2. Open an issue before beginning a substantial change that affects product scope, public contracts, security boundaries, or long-term architecture.
 3. Keep all repository content and user-visible output in English.
 4. Never commit credentials, local environment files, generated binaries, coverage output, or machine-specific state.
@@ -62,6 +62,7 @@ Comment rules:
 - Add or update tests at the lowest useful layer for every behavior change.
 - Cover relevant failure, cancellation, privacy, and deterministic-output cases.
 - Keep the README and product specifications aligned with behavior that is actually runnable.
+- Update the product contract when a change alters product boundaries, lifecycle semantics, or plan responsibilities.
 - Verify local Markdown links when documentation changes.
 
 ## Pull request scope

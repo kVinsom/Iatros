@@ -5,7 +5,7 @@
 <h1 align="center">IATROS DevOps</h1>
 
 <p align="center">
-  An early-stage open-source project exploring AI-assisted automation for modern DevOps workflows.
+  Provider-neutral DevOps automation with a free local foundation and optional AI assistance.
 </p>
 
 <p align="center">
@@ -19,19 +19,20 @@
 
 ## Overview
 
-IATROS DevOps is intended to help teams build, deploy, operate, troubleshoot, and improve software through natural-language DevOps workflows. The long-term goal is to connect repository context and operational intent with tools that can analyze projects, prepare infrastructure and delivery artifacts, validate proposed changes, and assist with day-to-day operations.
+IATROS DevOps is intended to help users build, deploy, operate, troubleshoot, and improve software through deterministic workflows with optional AI assistance. The long-term goal is to connect repository context and operational intent with tools that can analyze projects, prepare infrastructure and delivery artifacts, validate proposed changes, and assist with day-to-day operations.
 
 The proposed architecture separates provider-neutral domain logic from vendor-specific integrations. Stable contracts are intended to connect the core, public interfaces, plugins, and optional extensions without coupling the entire system to a particular cloud, source-control platform, observability backend, or AI provider.
 
 ## Planned capabilities
 
 - **Project understanding:** discover repositories, model topology, and assess production readiness.
-- **AI-assisted planning:** use project context to support implementation planning, risk analysis, and root-cause analysis.
-- **Delivery and infrastructure generation:** prepare CI/CD pipelines, infrastructure and container configurations, scripts, and operational documentation.
+- **Deterministic architecture generation:** use validated templates, rules, catalogs, and open plugins to prepare Docker and supported DevOps architecture locally in Basic.
+- **Optional AI assistance:** add cloud AI in Pro or cloud/local AI in Enterprise for planning, generation, risk analysis, diagnosis, and remediation.
+- **Delivery and infrastructure generation:** prepare CI/CD pipelines, infrastructure, orchestration, observability, security, container configurations, scripts, and operational documentation.
 - **Validation and diagnostics:** check proposed artifacts and provide an IATROS Doctor workflow for actionable findings.
 - **Deployment operations:** assist with promotion, rollback, GitOps workflows, and drift detection.
 - **Operational insight:** bring together observability, reliability, security, and cost-awareness workflows.
-- **Extensible integrations:** connect external tools and providers through stable plugin and extension contracts.
+- **Extensible integrations:** create open plugins in every plan and closed private plugins in Enterprise through stable contracts.
 
 These items describe the intended product direction. Only the local repository analysis and topology slice described below is currently runnable.
 
@@ -52,15 +53,15 @@ The complete architecture package is available in [`docs/`](docs/README.md), inc
 | [`deploy/`](deploy/) | Deployment resources for IATROS itself. |
 | [`docs/`](docs/) | Product specifications, architecture, security, testing, and decision records. |
 | [`examples/`](examples/) | Planned CLI, SDK, and plugin usage examples. |
-| [`extensions/`](extensions/) | Reserved Commercial and Enterprise overlays; currently placeholders only. |
+| [`extensions/`](extensions/) | Reserved Pro and Enterprise product overlays; customer-specific closed plugin source may be distributed separately. |
 | [`internal/`](internal/) | Private, provider-neutral application and domain logic. |
-| [`plugins/`](plugins/) | Planned first-party adapters grouped by capability. |
+| [`plugins/`](plugins/) | Planned open first-party adapters grouped by capability. |
 | [`sdk/`](sdk/) | Intended public Go client, plugin and extension contracts, and a plugin-testing toolkit. |
 | [`test/`](test/) | Cross-component integration and end-to-end test suites. |
 
 The intended dependency rules are:
 
-1. Maintain a single Community core that remains usable without optional Commercial or Enterprise extensions; do not duplicate core packages across editions.
+1. Maintain one provider-neutral core that remains fully usable through Basic without Pro or Enterprise capabilities; do not duplicate core packages by subscription.
 2. Keep business logic out of `cmd`; executable entry points should only compose applications.
 3. Keep `internal` independent from concrete plugins and optional extensions.
 4. Plugins should depend on stable contracts in `sdk/plugin` and, where necessary, `api` or `sdk/client`; optional extensions should implement `sdk/extension` or `sdk/plugin`.

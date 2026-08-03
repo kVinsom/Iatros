@@ -5,6 +5,7 @@
 
 See also:
 
+- [IATROS Product Contract](../product/product-contract.md)
 - [Target architecture](README.md)
 - [Security architecture](security.md)
 - [Architecture decision records](decisions/README.md)
@@ -19,7 +20,10 @@ Testing must provide evidence that:
 - state-changing work obeys policy, approval, scope, idempotency, verification, and audit requirements;
 - AI-assisted behavior remains bounded by deterministic controls;
 - failures, retries, cancellation, and recovery produce explicit outcomes;
-- Community remains functional without optional extensions.
+- Basic remains functional without Pro, Enterprise, AI, or closed plugins.
+- Basic performs no AI or hosted-service request and does not access a plugin destination until an explicit capability is invoked.
+- Pro sends only explicitly permitted context across the cloud AI boundary.
+- Enterprise local AI has no undeclared cloud egress, and closed plugins remain isolated to entitled company environments.
 
 Test quantity is not a substitute for testing the correct boundary.
 
@@ -98,9 +102,25 @@ A public contract is not stable merely because it compiles.
 - deterministic behavior for equivalent provider responses where feasible;
 - failure containment for crashes and malformed output.
 
-Every first-party plugin should run the same conformance suite plus provider-specific tests. Optional extensions require Community-only tests proving they are not mandatory.
+Every first-party plugin should run the same conformance suite plus provider-specific tests. Pro and Enterprise capabilities require Basic-only tests proving they are not mandatory. Closed Enterprise plugins additionally require entitlement, isolation, and private-distribution tests.
 
-### 3.4 Integration tests
+The conformance suite must apply the same capability, input, output, resource, cancellation, and effect rules to open and closed plugins. Distribution visibility and source licensing are not trust signals.
+
+### 3.4 Subscription and entitlement tests
+
+Plan-level suites should verify:
+
+- Pro includes every released Basic capability and Enterprise includes every released Pro capability without replacing core behavior;
+- Basic core behavior and access build and operate without a paid entitlement or Pro, Enterprise, AI-provider, billing-provider, or closed-plugin dependencies;
+- missing, expired, stale, altered, wrong-audience, or wrong-capability entitlement data returns an explicit unavailable or denied result;
+- Pro expiry disables new cloud AI requests without rewriting or hiding existing local artifacts and returns the product to free Basic;
+- Enterprise expiry disables new closed-plugin invocations unless an explicit tested grace or offline policy applies;
+- subscription expiry during an external effect reaches a verified safe terminal outcome rather than abandoning unknown state;
+- downgrade never deletes data, hides local artifacts, weakens validation, or silently substitutes another AI, plugin, or generator;
+- renewal does not revive stale validation, approval, target state, or capability authority;
+- security or administrator revocation remains distinguishable from subscription expiry and follows the capability's cancellation and quarantine semantics.
+
+### 3.5 Integration tests
 
 `test/integration` should verify applicable boundaries that package tests cannot prove as those boundaries are introduced:
 
@@ -115,7 +135,7 @@ Every first-party plugin should run the same conformance suite plus provider-spe
 
 Prefer disposable local dependencies, emulators, or isolated test containers. Tests must never depend on production credentials or mutable shared infrastructure.
 
-### 3.5 End-to-end tests
+### 3.6 End-to-end tests
 
 `test/e2e` should cover a small number of critical user journeys:
 
@@ -123,11 +143,28 @@ Prefer disposable local dependencies, emulators, or isolated test containers. Te
 2. produce a plan and candidate artifact;
 3. validate and present a diff with evidence;
 4. satisfy policy and any required approval, then execute a bounded reversible change;
-5. verify and report the outcome;
-6. diagnose a failure and propose remediation;
+5. verify, monitor, and report the outcome;
+6. diagnose a failure and return its remediation through a new controlled cycle;
 7. deny or safely stop an unauthorized or stale action.
 
 End-to-end tests validate packaging and integration, not every domain edge case.
+
+### 3.7 Lifecycle contract tests
+
+Lifecycle suites should test the stage contracts independently from a particular CLI, API, AI provider, or plugin:
+
+- every permitted entry point and transition in the standard workflow profiles;
+- rejection of Generate without a selected plan and Deploy without current validation and authorization;
+- immutable stage results and invalidation after evidence, scope, plan, candidate, capability, policy, approval, or target drift;
+- exact semantics for `completed`, `partial`, `blocked`, `unavailable`, `failed`, `cancelled`, `denied`, `rolled_back`, `indeterminate`, and `skipped`;
+- acceptance and rejection of partial analysis according to an explicit downstream completeness rule;
+- retry attempts that retain workflow identity while using new attempt and stable idempotency identities;
+- cancellation before work, during read-only work, before an effect, after a possible effect, and during verification;
+- verified rollback and reconciliation after partial, unknown, or externally changed state;
+- equivalence of stage gates across Basic, Pro, and Enterprise, including AI-disabled and plugin-unavailable paths;
+- external candidates entering Validate with normalized provenance and no inherited execution authority.
+
+Property and model-based tests should generate legal and illegal state sequences and prove that no sequence reaches Deploy without every required gate bound to the same immutable inputs.
 
 ## 4. Safety and security test matrix
 

@@ -2,11 +2,16 @@
 
 Product specifications define user-visible behavior before implementation. They complement the [target architecture](../architecture/README.md) without turning planned behavior into an implementation claim.
 
+## Canonical product contract
+
+The [IATROS Product Contract](product-contract.md) defines the final product boundary, the Analyze → Plan → Generate → Validate → Deploy → Monitor → Fix lifecycle, and the Basic, Pro, and Enterprise plans. Basic is free, local, and AI-free; Pro adds cloud AI; Enterprise adds cloud or local AI plus closed plugins. It applies to every feature specification without claiming that target capabilities are already implemented.
+
 ## Active specifications
 
 | ID | Specification | Product status | Implementation status | Approved |
 | --- | --- | --- | --- | --- |
 | [PS-0001](0001-local-repository-analysis.md) | Local repository analysis | Approved | In progress | 2026-08-01 |
+| [PS-0002](0002-core-domain-contracts.md) | Stable core domain contracts | Approved | Implemented | 2026-08-03 |
 
 ## Status model
 

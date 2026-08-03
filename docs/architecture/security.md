@@ -17,6 +17,7 @@ The topology CLI adapter validates the complete mapped report before rendering i
 
 See also:
 
+- [IATROS Product Contract](../product/product-contract.md)
 - [Target architecture](README.md)
 - [Testing strategy](testing.md)
 - [Manifest analysis architecture](manifest-analysis.md)
@@ -159,6 +160,14 @@ Authentication protocol, identity provider, resource hierarchy, tenancy model, p
 
 AI output is advisory data. The model must not be the policy decision point or receive ambient access to secrets and provider credentials.
 
+Plan-specific placement rules are:
+
+- Basic has no AI capability and sends no project context to an AI service;
+- Pro uses cloud AI only, with explicit task scope, context minimization, data-class controls, and declared retention behavior;
+- Enterprise may use cloud AI under company egress policy or local AI inside a company-controlled environment;
+- local Enterprise AI has no automatic cloud fallback or model-context egress; either requires a separate explicit policy decision;
+- changing the model location does not change validation, authorization, audit, or tool-capability requirements.
+
 Target controls include:
 
 - capability-scoped tools with schema-validated inputs and outputs;
@@ -171,7 +180,11 @@ Target controls include:
 - evaluation for prompt injection, unsafe tool selection, fabricated evidence, and unauthorized scope expansion;
 - human or policy approval for high-impact actions regardless of model confidence.
 
-AI provider selection, routing, fallback, permitted data classes, retention, and reproducibility requirements remain TBD.
+Exact AI provider selection, routing, fallback, permitted data classes, retention, and reproducibility requirements remain TBD. The Basic, Pro, and Enterprise placement boundaries are established product constraints.
+
+Pro and Enterprise entitlement is not authorization. It may make a paid capability available, but it cannot grant target scope, credentials, effect permissions, policy approval, or plugin trust. Basic requires no paid entitlement. Entitlement assertions must be integrity-protected, audience-bound, time-bounded, and validated at the applicable admission or invocation boundary.
+
+Pro or Enterprise expiry denies new paid invocations and returns the product to Basic, but it must not interrupt an external effect at an unsafe point or delete local artifacts. Security or administrator revocation is a separate control and may require immediate cancellation or quarantine. A renewed entitlement never restores stale validation, approval, provider state, or capability authority.
 
 ## 8. Executable capability, worker, and agent isolation
 
@@ -183,6 +196,8 @@ Every executable plugin, plus any extension that executes a plugin or effect cap
 - required network destinations;
 - data classifications it consumes or produces;
 - whether it requires an environment-local agent.
+
+Open and closed plugins have identical trust classification. Public source does not make an open plugin trusted, and private distribution does not exempt a closed plugin from validation. Closed Enterprise plugins additionally require entitlement, company isolation, private-distribution integrity, revocation, and upgrade controls.
 
 The runtime must:
 
@@ -256,7 +271,7 @@ Security audit events are durable evidence, not ordinary debug logs. Committed e
 - approval identity, expiry, and exact plan or artifact hash;
 - sanitized plugin, tool, and model provenance;
 - start, end, verification, and reconciliation timestamps;
-- succeeded, failed, denied, cancelled, rolled-back, or indeterminate outcome.
+- `completed`, `failed`, `denied`, `cancelled`, `rolled_back`, or `indeterminate` outcome.
 
 Audit data must never include secret values. An effect must not begin unless its audit intent can be durably established. If audit delivery fails after an effect may have occurred, the workflow becomes indeterminate until the evidence is recovered or reconciled. The outbox, storage, cryptographic integrity, retention, export, and recovery mechanisms remain TBD.
 
@@ -282,7 +297,7 @@ All effectful workflows require explicit state transitions and terminal outcomes
 - backpressure, quotas, load shedding, circuit breakers, and bulkheads;
 - dead-letter or manual-recovery paths for exhausted work;
 - graceful shutdown and safe handoff;
-- explicit failed, cancelled, rolled-back, and indeterminate states;
+- explicit `failed`, `cancelled`, `rolled_back`, and `indeterminate` states;
 - postcondition verification and reconciliation of partial provider effects;
 - tested backup, restore, and disaster-recovery procedures before production use.
 

@@ -6,7 +6,9 @@
 ## Product specifications
 
 - [Product specification index](product/README.md) — approved user-visible contracts and their implementation status.
+- [IATROS Product Contract](product/product-contract.md) — canonical product boundaries, lifecycle, invariants, and subscription responsibilities.
 - [PS-0001: Local repository analysis](product/0001-local-repository-analysis.md) — the first local-only, read-only CLI vertical slice.
+- [PS-0002: Stable core domain contracts](product/0002-core-domain-contracts.md) — implemented private models and schema-evolution rules shared by future workflows.
 
 ## Architecture
 
