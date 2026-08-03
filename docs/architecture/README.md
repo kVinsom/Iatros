@@ -1,18 +1,22 @@
 # IATROS Target Architecture
 
 > [!IMPORTANT]
-> **Status: target architecture with an initial CLI contract implementation.** The root Go module, Cobra-based CLI adapter, local analysis placeholder, bounded filesystem discovery, and broad filename-based technology detection are implemented internally. Discovery and detection are not yet connected to CLI reports; every broader runtime, API, SDK, plugin, workflow, and security capability remains target behavior unless explicitly marked otherwise.
+> **Status: target architecture with an integrated local analysis slice.** The root Go module and Cobra CLI expose bounded metadata analysis and a separate bounded repository-topology workflow. Project boundaries, allowlisted manifests, workspaces, and direct dependency edges map to deterministic topology text and JSON without changing the established readiness-report schema. Every broader runtime, API, SDK, plugin, workflow, and security capability remains target behavior unless explicitly marked otherwise.
 
 Related documents:
 
 - [Security architecture](security.md)
 - [Testing strategy](testing.md)
 - [Technology detection architecture](detection.md)
+- [Project and workspace boundary model](project-model.md)
+- [Manifest analysis architecture](manifest-analysis.md)
+- [Repository topology architecture](topology.md)
+- [Repository readiness architecture](readiness.md)
 - [Architecture decision records](decisions/README.md)
 
 ## 1. Status and scope
 
-The repository contains the canonical directory scaffold, project metadata, branding, documentation, one root Go module, a tested `iatros analyze` contract stub, a bounded filesystem inventory service, and a broad internal technology detector. These internal capabilities are not yet part of the user-visible command result. The repository does not yet contain readiness rules, public schemas, deployment configuration, CI workflows, or releases.
+The repository contains the canonical directory scaffold, project metadata, branding, documentation, one root Go module, and tested `iatros analyze` and `iatros topology` workflows. The first command integrates bounded metadata discovery, broad marker detection, five conservative readiness rules, discovery diagnostics, and semantically equivalent text and JSON output. The second detects nested boundaries, parses allowlisted manifests, resolves workspace membership, identifies direct local dependency edges, and maps them to its own versioned CLI report. The repository does not yet contain network API schemas, deployment configuration, CI workflows, or releases.
 
 This document establishes:
 
@@ -88,6 +92,7 @@ External repositories, provider responses, plugin output, and model output are d
 9. **No speculative hierarchy.** Add vendor, version, transport, or deployment-specific packages only when real implementation requires them.
 10. **One initial Go module.** First-party Go packages share `github.com/kVinsom/Iatros` until an independently released component justifies a split.
 11. **Isolated CLI framework.** Cobra remains inside the CLI adapter; provider-neutral analysis and domain packages do not depend on it.
+12. **Scalable profiles and replaceable backends.** Core contracts must support conservative small-repository defaults and validated large-repository profiles. File size, count, memory, and time budgets remain injectable, while parser and processing implementations may be replaced behind consumer-owned interfaces when measured requirements justify a standard-library, third-party, generated, or streaming backend.
 
 These established constraints are recorded in [ADR-0001](decisions/0001-capability-boundaries-and-dependency-direction.md), [ADR-0002](decisions/0002-single-community-core-with-optional-overlays.md), [ADR-0003](decisions/0003-start-with-one-go-module.md), and [ADR-0005](decisions/0005-use-cobra-as-the-cli-adapter.md).
 
@@ -165,12 +170,16 @@ An inbound API adapter is wired by the applicable composition root, such as `cmd
 
 ## 7. Domain map
 
-The following paths define capability ownership. Their current presence is structural only.
+The following paths define capability ownership. Analysis orchestration, discovery, technology detection, project-boundary modeling, manifest analysis, topology association, readiness, and CLI reporting have initial implementations; other entries remain structural or target boundaries unless documented otherwise.
 
 | Domain | Target responsibility |
 | --- | --- |
-| `internal/project` | Canonical provider-neutral representation of a project and its topology. |
-| `internal/analysis` | Discovery, topology analysis, production readiness, and evidence-based findings. |
+| `internal/project` | Provider-neutral project and workspace boundary model consumed by topology analysis. |
+| `internal/manifest` | Bounded, provider-neutral manifest parsing, normalization, resource profiles, and replaceable parser contracts. |
+| `internal/topology` | Deterministic project/component association, workspace relationships, and direct local dependency resolution. |
+| `internal/analysis` | Bounded discovery, analysis orchestration, topology analysis, and versioned CLI report contracts. |
+| `internal/detection` | Evidence-based identification of languages, runtimes, dependency managers, and DevOps tooling. |
+| `internal/readiness` | Deterministic repository-readiness rules and private findings. |
 | `internal/assistant` | Provider-neutral planning, context assembly, risk reasoning, and root-cause-analysis coordination. |
 | `internal/generation` | Creation of candidate delivery, infrastructure, documentation, and operational artifacts. |
 | `internal/doctor` | Validation and actionable diagnostics. |
@@ -252,7 +261,7 @@ These are logical responsibilities, not a commitment to five independently deplo
 
 | Entry point | Target responsibility | Open choices |
 | --- | --- | --- |
-| `cmd/iatros` | Implemented human-facing CLI composition root. It currently exposes help, version, and the local analysis contract stub. | Whether later workflows remain embedded or use a control plane. |
+| `cmd/iatros` | Implemented human-facing CLI composition root. It exposes help, version, local readiness analysis, and repository topology. | Whether later workflows remain embedded or use a control plane. |
 | `cmd/mcp` | Model Context Protocol adapter for MCP hosts. | Transport, authentication, and exposed capabilities. |
 | `cmd/controlplane` | Request admission, policy checks, coordination, and workflow metadata. | API protocol, persistence, tenancy, and deployment topology. |
 | `cmd/worker` | Asynchronous or long-running workflow execution. | Queue, scheduling, retries, leases, and whether it is needed for the first release. |
@@ -310,6 +319,8 @@ The approval and execution semantics remain proposed until [ADR-0004](decisions/
 | Concept | Intended owner | Notes |
 | --- | --- | --- |
 | Canonical project model | `internal/project` | Private, provider-neutral representation; schema is TBD. |
+| Normalized manifest facts | `internal/manifest` | Private direct declarations mapped through the topology report contract. |
+| Repository topology | `internal/topology` and `internal/analysis` | Private associated model plus versioned CLI schema `0.1`; no network API contract yet. |
 | Evidence and findings | Consuming internal domains | Interfaces and types remain near consumers. |
 | Plans and candidate artifacts | `internal/assistant` and `internal/generation` | Not executable authority by themselves. |
 | Validation results | `internal/doctor` | Normalized diagnostics with provenance. |

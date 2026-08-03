@@ -1,7 +1,7 @@
 # PS-0001: Local Repository Analysis
 
 - **Product status:** Approved
-- **Implementation status:** In progress
+- **Implementation status:** Initial local slice implemented
 - **Approved:** 2026-08-01
 - **Primary users:** DevOps engineers and software developers
 - **Interface language:** English
@@ -12,6 +12,7 @@ Related documents:
 - [IATROS target architecture](../architecture/README.md)
 - [Security architecture](../architecture/security.md)
 - [Testing strategy](../architecture/testing.md)
+- [Manifest analysis architecture](../architecture/manifest-analysis.md)
 - [ADR-0004: Control state-changing operations](../architecture/decisions/0004-control-state-changing-operations.md)
 - [ADR-0005: Use Cobra as the CLI adapter](../architecture/decisions/0005-use-cobra-as-the-cli-adapter.md)
 
@@ -22,21 +23,27 @@ Related documents:
 | Go module and Cobra command surface | Implemented |
 | Versioned text and JSON contract stub | Implemented |
 | Local target validation and documented exit codes | Implemented |
-| Safe filesystem discovery | Implemented internally; CLI integration deferred |
-| Ecosystem marker detection | Implemented internally; report and CLI integration deferred |
-| Repository-readiness findings | Not started |
+| Safe filesystem discovery | Implemented and integrated |
+| Ecosystem marker detection | Implemented and integrated |
+| Repository-readiness findings | Five rules implemented and integrated |
+| Discovery diagnostics and partial-report policy | Implemented and integrated |
+| Deterministic text and JSON output | Implemented and integration-tested |
+| Project and workspace boundary model | Implemented and exposed through topology reports |
+| Bounded manifest analysis | Seven formats, normalized direct declarations, conservative and large profiles, and replaceable backends implemented; conservative profile exposed through topology reports |
+| Repository topology | Local project/component association, workspace membership, direct dependency edges, and versioned CLI text/JSON implemented |
 
 ## 1. Summary
 
-The first IATROS vertical slice is a local, read-only repository analysis command:
+The first IATROS vertical slice contains two local, read-only repository commands:
 
 ```text
 iatros analyze [flags] [path]
+iatros topology [flags] [path]
 ```
 
-The command will eventually inspect a directory on the same machine, detect project ecosystems and operational markers, and produce an evidence-based readiness report in text or JSON format.
+`analyze` detects project ecosystems and operational markers and produces an evidence-based readiness report. `topology` safely reads allowlisted manifests and produces project, component, workspace, and direct dependency relationships. Both return text or JSON.
 
-The initial implementation may return an explicit `not_implemented` result through the same stable result envelope. It must never fabricate ecosystems, findings, scan counts, or successful analysis.
+The default CLI now runs the implemented analyzer. The stable envelope still permits an explicit `not_implemented` result for a future analyzer implementation that is deliberately unavailable; it must never fabricate ecosystems, findings, scan counts, or successful analysis.
 
 ## 2. Problem
 
@@ -100,6 +107,7 @@ A user-mounted network filesystem may look like a local path, but it is outside 
 
 ```text
 iatros analyze [flags] [path]
+iatros topology [flags] [path]
 ```
 
 ### Arguments and flags
@@ -112,11 +120,14 @@ iatros analyze [flags] [path]
 
 Unknown flags, unsupported formats, or more than one positional path are usage errors.
 
+The commands use separate versioned envelopes. Adding topology did not change the established `analyze` schema or its metadata-only behavior.
+
 ### Output streams
 
 - `stdout` contains only the selected report format.
 - `stderr` contains CLI usage help or diagnostic logging, never a second report.
 - JSON output must remain valid JSON even when the analysis status is `not_implemented`, `partial`, or `failed`.
+- Topology JSON must remain valid JSON when its status is `partial` or `failed`.
 - Output ends with one newline.
 
 ### Path behavior
@@ -132,7 +143,7 @@ Unknown flags, unsupported formats, or more than one positional path are usage e
 
 | Status | Meaning |
 | --- | --- |
-| `not_implemented` | The contract exists, but no repository analysis was performed. |
+| `not_implemented` | The `analyze` contract exists, but no repository analysis was performed. Topology does not use this status. |
 | `completed` | Analysis finished within all configured limits. |
 | `partial` | Safe limits or recoverable read failures prevented complete analysis. |
 | `failed` | No trustworthy analysis result could be produced. |
@@ -143,11 +154,11 @@ A `partial` result must explain what was skipped. It must not silently look comp
 
 | Code | Meaning |
 | --- | --- |
-| `0` | Analysis completed or produced an explicitly partial report. Findings do not change the exit code in this slice. |
+| `0` | The selected analysis completed or produced an explicitly partial report. Readiness findings do not change the exit code. |
 | `1` | Operational or internal failure. |
 | `2` | Invalid command usage. |
 | `3` | Target path is missing, inaccessible, or not a directory. |
-| `4` | Analysis is not implemented yet. |
+| `4` | The configured readiness analyzer explicitly reports that its implementation is unavailable. The default local analyzer and topology command do not return this code. |
 
 A future opt-in policy such as `--fail-on` may map findings to a non-zero exit code. It is outside this specification and must not change the default behavior.
 
@@ -158,26 +169,47 @@ The initial schema version is `0.1`.
 ```json
 {
   "schema_version": "0.1",
-  "status": "not_implemented",
+  "status": "completed",
   "target": {
     "kind": "local_directory",
     "path": "."
   },
   "summary": {
-    "directories_scanned": 0,
-    "files_scanned": 0,
-    "ecosystems_detected": 0,
+    "directories_scanned": 3,
+    "files_scanned": 7,
+    "ecosystems_detected": 3,
     "findings_total": 0
   },
-  "ecosystems": [],
-  "findings": [],
-  "diagnostics": [
+  "ecosystems": [
     {
-      "code": "IATROS_ANALYSIS_NOT_IMPLEMENTED",
-      "level": "info",
-      "message": "Local repository analysis is not implemented yet."
+      "id": "github-actions",
+      "category": "ci_cd",
+      "evidence": [
+        ".github/workflows/ci.yml"
+      ],
+      "evidence_truncated": false
+    },
+    {
+      "id": "go",
+      "category": "language",
+      "evidence": [
+        "go.mod",
+        "main.go",
+        "main_test.go"
+      ],
+      "evidence_truncated": false
+    },
+    {
+      "id": "go-modules",
+      "category": "dependency_manager",
+      "evidence": [
+        "go.mod"
+      ],
+      "evidence_truncated": false
     }
-  ]
+  ],
+  "findings": [],
+  "diagnostics": []
 }
 ```
 
@@ -191,6 +223,34 @@ The initial schema version is `0.1`.
 - Counts match the included result collections and actual scan scope.
 - Empty or unavailable data is represented honestly; it is not replaced with guessed values.
 
+### Repository topology envelope
+
+`iatros topology` has an independent schema version `0.1` and fixed `report_type: repository_topology`:
+
+```json
+{
+  "schema_version": "0.1",
+  "report_type": "repository_topology",
+  "status": "completed",
+  "target": {"kind": "local_directory", "path": "."},
+  "summary": {
+    "projects_total": 0,
+    "workspaces_total": 0,
+    "components_total": 0,
+    "dependencies_total": 0,
+    "internal_dependencies": 0,
+    "unresolved_dependencies": 0,
+    "ambiguous_dependencies": 0
+  },
+  "projects": [],
+  "workspaces": [],
+  "dependencies": [],
+  "diagnostics": []
+}
+```
+
+All top-level and nested collections are arrays when empty. Projects include roots, kinds, workspace relationships, markers, and parsed components. Workspaces include containment, explicit member and exclusion matches, and declaration resolution. Dependencies include their source, ecosystem, declaration details, resolution, and bounded local targets. Every path is root-relative; no timestamp, absolute target, or raw manifest content is included. The complete field and validation contract is documented in [Repository Topology Architecture](../architecture/topology.md#10-public-cli-contract).
+
 ## 10. Ecosystem result
 
 An implemented detector may return:
@@ -198,23 +258,27 @@ An implemented detector may return:
 ```json
 {
   "id": "go",
+  "category": "language",
   "evidence": [
     "go.mod"
-  ]
+  ],
+  "evidence_truncated": false
 }
 ```
 
 Rules:
 
 - `id` is a stable lowercase identifier.
+- `category` is the technology's stable primary role, such as `language`, `dependency_manager`, or `ci_cd`.
 - `evidence` contains sorted paths relative to the analysis root.
+- `evidence_truncated` is `true` when the per-technology evidence limit omitted additional matching paths.
 - Ecosystem results are sorted by `id`; duplicate identifiers or evidence paths are invalid.
 - A marker indicates detected tooling or an ecosystem; it does not prove that the repository builds or runs.
 - The detector must not claim an ecosystem without direct evidence.
 
 The internal filename catalog covers common backend languages, runtimes, dependency managers, build systems, containers, orchestration, infrastructure as code, configuration management, CI/CD, GitOps, observability, networking, security, secrets, and cloud-platform tooling. The exact supported IDs and evidence policy are documented in the [technology detection architecture](../architecture/detection.md).
 
-Filename-only results are private internal `Technology` records in this increment. Mapping them into the versioned `Ecosystem` report contract is deferred until discovery, detection, diagnostics, and bounded-evidence behavior can be integrated together without changing the CLI stub prematurely.
+Filename-only results remain private internal `Technology` records. The analysis orchestrator translates them into the versioned `Ecosystem` report contract, preserving category, bounded evidence, and truncation state without exposing detector types to the CLI.
 
 ## 11. Finding result
 
@@ -243,7 +307,7 @@ An implemented readiness rule may return:
 - Findings are ordered by severity (`critical`, `warning`, then `info`), followed by code and evidence in lexical order; duplicate ordering keys are invalid.
 - Findings never imply that an absent marker proves a system is insecure or broken.
 
-Initial readiness rules may include:
+The internal readiness evaluator implements:
 
 | Code | Condition | Initial severity |
 | --- | --- | --- |
@@ -255,16 +319,44 @@ Initial readiness rules may include:
 
 These checks report marker presence, not the quality or correctness of the referenced files.
 
+The current rules evaluate only complete discovery snapshots. If discovery is partial, absence-based findings are suppressed because omitted or unreadable paths make absence untrustworthy. An empty complete repository receives only the README, license, and `.gitignore` findings. Test absence applies only when a language or runtime is detected; infrastructure-only repositories do not receive the code-test finding.
+
 ## 12. Text output
 
-The stub text report is:
+A completed text report uses the same data as JSON and groups technologies by category:
 
 ```text
 IATROS Local Repository Analysis
-Status: not implemented
+Status: completed
 Target: .
 
-No analysis was performed.
+Summary:
+- Directories scanned: 3
+- Files scanned: 7
+- Ecosystems detected: 3
+- Findings total: 0
+
+Technologies:
+- CI/CD:
+  - github-actions
+    Evidence:
+      - .github/workflows/ci.yml
+    Evidence truncated: false
+- Dependency manager:
+  - go-modules
+    Evidence:
+      - go.mod
+    Evidence truncated: false
+- Language:
+  - go
+    Evidence:
+      - go.mod
+      - main.go
+      - main_test.go
+    Evidence truncated: false
+
+Findings:
+- None
 ```
 
 An implemented text report must represent the same target, status, summary, ecosystems, findings, and diagnostics as the JSON report. Text is a presentation format, not a separate analysis path.
@@ -282,9 +374,9 @@ The implementation must:
 - prevent traversal outside the root;
 - skip VCS internals such as `.git/`;
 - never read values from `.env`, credentials, private keys, certificates, tokens, or known secret stores;
-- limit content reads to an explicit allowlist of marker files required by implemented detectors;
+- keep the active schema `0.1` report path metadata-only; internal enrichment may read only exact registered manifest filenames through a confined source and separate validated limits;
 - use relative evidence paths and avoid exposing local usernames or absolute paths;
-- enforce file-count, directory-depth, file-size, total-read, and execution-time limits before full scanning is implemented;
+- enforce file-count, directory-count, directory-depth, per-directory entry, retained-issue, evidence, and execution-time limits;
 - return `partial` or `failed` with diagnostics when safe analysis cannot continue;
 - handle cancellation without reporting success.
 
@@ -301,11 +393,29 @@ The internal discovery baseline uses the following conservative defaults:
 
 Discovery reads directory entries and file metadata only. It retains one confined `os.Root`, returns sorted root-relative paths, skips symbolic links, junction-like irregular entries, `.git`, `.hg`, and `.svn`, and never opens regular files. Access failures and reached limits produce bounded structured issues that can later support deterministic or AI-assisted remediation comments.
 
+The separate internal manifest stage may open `go.mod`, `go.work`, `package.json`, `pyproject.toml`, `Cargo.toml`, `composer.json`, and `pom.xml` after discovery. It processes one document at a time and uses independent exact-filename, identity, byte, nesting, retained-value, collection, cancellation, and diagnostic controls. It does not execute tools, resolve external entities, contact registries, or retain raw content and parser errors in its result.
+
+| Manifest limit | Conservative default | Large-repository profile |
+| --- | ---: | ---: |
+| Files | 100 | 2,000 |
+| Bytes per file | 256 KiB | 8 MiB |
+| Total bytes | 4 MiB | 256 MiB |
+| Dependencies per manifest | 1,000 | 10,000 |
+| Constraints per manifest | 100 | 1,000 |
+| Workspace members per manifest | 500 | 5,000 |
+| Workspace exclusions per manifest | 500 | 5,000 |
+| Structured issues | 50 | 200 |
+| Nesting depth | 64 | 128 |
+| Bytes per retained value | 4 KiB | 64 KiB |
+| Analysis duration | 3 seconds | 30 seconds |
+
+These are injectable profiles, not product-wide repository ceilings. CLI selection and release-calibrated Enterprise defaults remain deferred.
+
 Root and nested `.gitignore` rules are not interpreted in this increment. Correct support requires nested rule scope, negation, escaping, and anchored matching; partial support could hide relevant evidence. The `.gitignore` file itself remains visible in inventory, while its patterns do not change traversal.
 
-## 14. Stub implementation contract
+## 14. Placeholder compatibility contract
 
-The first executable placeholder may:
+The historical placeholder remains available as a tested analyzer implementation for compatibility and future deliberately unavailable configurations. It may:
 
 1. parse `analyze`, `path`, and `--format`;
 2. validate that the target exists and is a directory;
@@ -314,7 +424,7 @@ The first executable placeholder may:
 5. return exit code `4`;
 6. perform no directory traversal, content reads, network access, or writes.
 
-The stub must not:
+The placeholder must not:
 
 - return exit code `0`;
 - claim that analysis completed;
@@ -328,8 +438,8 @@ The product specification is satisfied when:
 
 1. `iatros analyze` accepts zero or one local directory path.
 2. `--format text` and `--format json` describe the same result.
-3. The placeholder behavior exactly follows the stub contract until scanning exists.
-4. Real analysis replaces empty values without changing the envelope's meaning.
+3. The default composition root runs real local analysis; the placeholder remains an explicit non-default outcome.
+4. Real analysis populates the stable envelope without changing its established meaning.
 5. The command performs no network access and no target writes.
 6. All user-visible project content and messages are English.
 7. Output is deterministic for the same root, files, configuration, and implementation version.
@@ -339,21 +449,29 @@ The product specification is satisfied when:
 11. Unit tests cover parsing, result formatting, ordering, and error mapping.
 12. Integration tests prove the local-only, read-only path from CLI input to report output.
 13. The README is updated only when runnable behavior exists and uses verified commands.
+14. `iatros topology` exposes the associated local model through a separate validated schema without changing `iatros analyze`.
 
 ## 16. Implementation sequence
 
-1. **Contract stub:** initialize the Go module and return the approved placeholder envelope.
-2. **Safe discovery:** add bounded local filesystem inventory without content analysis.
-3. **Marker detection:** populate ecosystems from direct evidence.
-4. **Readiness rules:** populate findings from supported repository markers.
-5. **Integration:** verify text/JSON parity, deterministic output, safety constraints, and documentation.
+1. **Contract stub — complete:** initialize the Go module and return the approved placeholder envelope.
+2. **Safe discovery — complete:** add bounded local filesystem inventory without content analysis.
+3. **Marker detection — complete:** populate ecosystems from direct evidence.
+4. **Readiness rules — complete:** populate findings from supported repository markers.
+5. **Integration — complete:** compose discovery, detection, readiness, diagnostics, report validation, text/JSON rendering, exit behavior, and documentation.
+
+The working ten-step plan counts the Go module and Cobra foundation separately from the contract stub. In that plan:
+
+- **Step 7, project boundaries — complete internally:** identify nested project and workspace roots without changing schema `0.1`.
+- **Step 8, manifest analysis — complete internally:** parse bounded allowlisted manifests into normalized facts behind replaceable backends.
+- **Step 9, topology integration — complete internally:** associate boundary and manifest facts, resolve repository-confined workspace membership, and build direct local dependency edges.
+- **Step 10, public topology contract — complete:** expose a separate validated `repository_topology` schema `0.1` through deterministic CLI text and JSON.
 
 ## 17. Deferred decisions
 
-- release and Enterprise discovery-limit profiles and their configuration surface;
+- user-selectable profile configuration and production-calibrated Enterprise defaults; conservative and large code-level profiles already exist;
+- selection criteria and production composition for optional specialized, third-party, generated, or streaming parser backends; the replacement contract already exists;
 - complete `.gitignore` semantics and their configuration policy;
 - hidden-file policy outside known sensitive paths;
-- nested project and monorepo boundaries;
 - binary-file detection;
 - supported marker versions and confidence model;
 - opt-in policy failure thresholds;

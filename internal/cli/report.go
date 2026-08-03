@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 
 	"github.com/kVinsom/Iatros/internal/analysis"
@@ -16,15 +17,34 @@ const (
 )
 
 func writeReport(writer io.Writer, format string, report analysis.Report) error {
-	report = report.Normalized()
-
 	if format == formatJSON {
-		encoder := json.NewEncoder(writer)
-		encoder.SetIndent("", "  ")
-		return encoder.Encode(report)
+		return writeJSON(writer, report.Normalized())
 	}
 
 	return writeTextReport(writer, report)
+}
+
+func validateReportFormat(format string) error {
+	if format == formatText || format == formatJSON {
+		return nil
+	}
+	return fmt.Errorf(
+		"unsupported format %q; supported formats are text and json",
+		format,
+	)
+}
+
+func commandTarget(args []string) string {
+	if len(args) == 1 {
+		return args[0]
+	}
+	return "."
+}
+
+func writeJSON(writer io.Writer, value any) error {
+	encoder := json.NewEncoder(writer)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(value)
 }
 
 func writeTextReport(writer io.Writer, report analysis.Report) error {
@@ -42,7 +62,7 @@ func writeTextReport(writer io.Writer, report analysis.Report) error {
 		writeTextDiagnostics(output, report.Diagnostics)
 	default:
 		writeTextSummary(output, report.Summary)
-		writeTextEcosystems(output, report.Ecosystems)
+		writeTextTechnologies(output, report.Ecosystems)
 		writeTextFindings(output, report.Findings)
 		writeTextDiagnostics(output, report.Diagnostics)
 	}
@@ -58,17 +78,55 @@ func writeTextSummary(output *textWriter, summary analysis.Summary) {
 	output.printf("- Findings total: %d\n", summary.FindingsTotal)
 }
 
-func writeTextEcosystems(output *textWriter, ecosystems []analysis.Ecosystem) {
+func writeTextTechnologies(output *textWriter, ecosystems []analysis.Ecosystem) {
 	output.line()
-	output.line("Ecosystems:")
+	output.line("Technologies:")
 	if len(ecosystems) == 0 {
 		output.line("- None")
 		return
 	}
 
+	byCategory := make(map[string][]analysis.Ecosystem)
 	for _, ecosystem := range ecosystems {
-		output.printf("- %s\n", ecosystem.ID)
-		writeTextEvidence(output, ecosystem.Evidence)
+		byCategory[ecosystem.Category] = append(byCategory[ecosystem.Category], ecosystem)
+	}
+	categories := make([]string, 0, len(byCategory))
+	for category := range byCategory {
+		categories = append(categories, category)
+	}
+	slices.Sort(categories)
+
+	for _, category := range categories {
+		output.printf("- %s:\n", technologyCategoryLabel(category))
+		for _, ecosystem := range byCategory[category] {
+			output.printf("  - %s\n", ecosystem.ID)
+			writeIndentedTextEvidence(output, ecosystem.Evidence)
+			output.printf("    Evidence truncated: %t\n", ecosystem.EvidenceTruncated)
+		}
+	}
+}
+
+func technologyCategoryLabel(category string) string {
+	switch category {
+	case "ci_cd":
+		return "CI/CD"
+	case "gitops":
+		return "GitOps"
+	}
+
+	label := strings.ReplaceAll(category, "_", " ")
+	return strings.ToUpper(label[:1]) + label[1:]
+}
+
+func writeIndentedTextEvidence(output *textWriter, evidence []string) {
+	if len(evidence) == 0 {
+		output.line("    Evidence: none")
+		return
+	}
+
+	output.line("    Evidence:")
+	for _, item := range evidence {
+		output.printf("      - %s\n", item)
 	}
 }
 

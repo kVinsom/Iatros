@@ -28,6 +28,10 @@ These instructions apply to the entire repository.
 ## Architecture and quality
 
 - Keep `cmd/*` entry points thin and keep provider-neutral behavior independent from CLI and integration frameworks.
+- Design core capabilities for both small repositories and very large company-scale repositories; do not bake one repository size into domain contracts.
+- Express file, byte, entry, depth, time, and memory budgets as validated injectable limits with conservative defaults and larger selectable profiles.
+- Keep parser and processing backends replaceable behind consumer-owned interfaces. Standard-library implementations may be the default, but maintained third-party or specialized streaming implementations are allowed when requirements, benchmarks, file sizes, or format fidelity justify them.
+- Require every third-party backend to preserve the same normalized contracts, safety limits, cancellation, deterministic behavior, diagnostics, and cross-platform expectations as the default implementation.
 - Preserve user changes that are unrelated to the active task.
 - Format changed Go files with `gofmt`.
 - Run `go test ./...`, `go vet ./...`, and `go build ./...` after changing Go code.

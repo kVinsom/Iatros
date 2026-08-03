@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -88,6 +89,51 @@ func TestAnalyzeJSONIsDeterministic(t *testing.T) {
 	}
 }
 
+func TestAnalyzeLocalRepositoryJSON(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	for _, relativePath := range []string{
+		"README.md",
+		"LICENSE",
+		".gitignore",
+		"go.mod",
+		"main_test.go",
+		".github/workflows/ci.yml",
+	} {
+		filename := filepath.Join(root, filepath.FromSlash(relativePath))
+		if err := os.MkdirAll(filepath.Dir(filename), 0o700); err != nil {
+			t.Fatalf("MkdirAll(%q) error = %v", relativePath, err)
+		}
+		if err := os.WriteFile(filename, []byte("fixture content is not read"), 0o600); err != nil {
+			t.Fatalf("WriteFile(%q) error = %v", relativePath, err)
+		}
+	}
+	analyzer, err := analysis.NewLocalAnalyzer()
+	if err != nil {
+		t.Fatalf("NewLocalAnalyzer() error = %v", err)
+	}
+
+	result := runCLI(t, analyzer, "analyze", "--format=json", root)
+	report := decodeReport(t, result.stdout)
+
+	if result.exitCode != ExitSuccess || result.stderr != "" {
+		t.Fatalf("Run() = exit %d, stderr %q; want success", result.exitCode, result.stderr)
+	}
+	if report.Status != analysis.StatusCompleted || report.Summary.EcosystemsDetected != 3 ||
+		report.Summary.FindingsTotal != 0 {
+		t.Fatalf("report = %#v, want complete ready Go repository", report)
+	}
+	if strings.Contains(result.stdout, filepath.ToSlash(root)) {
+		t.Fatal("report exposed the absolute analysis root")
+	}
+	for _, ecosystem := range report.Ecosystems {
+		if ecosystem.Category == "" {
+			t.Fatalf("ecosystem = %#v, want category", ecosystem)
+		}
+	}
+}
+
 func TestAnalyzeInvalidTargetsProduceSafeJSON(t *testing.T) {
 	t.Parallel()
 
@@ -157,10 +203,12 @@ func TestAnalyzeRendersCompleteTextReport(t *testing.T) {
 		"- Files scanned: 3\n" +
 		"- Ecosystems detected: 1\n" +
 		"- Findings total: 1\n\n" +
-		"Ecosystems:\n" +
-		"- go\n" +
-		"  Evidence:\n" +
-		"    - go.mod\n\n" +
+		"Technologies:\n" +
+		"- Language:\n" +
+		"  - go\n" +
+		"    Evidence:\n" +
+		"      - go.mod\n" +
+		"    Evidence truncated: false\n\n" +
 		"Findings:\n" +
 		"- [warning] repository.readme.missing: No README was detected.\n" +
 		"  Evidence:\n" +
@@ -294,6 +342,14 @@ func TestAnalyzeOutcomeValidation(t *testing.T) {
 			wantStatus:     analysis.StatusFailed,
 			wantDiagnostic: analysis.DiagnosticCodeAnalysisCanceled,
 		},
+		{
+			name:           "internal deadline is not user cancellation",
+			report:         customCancellation,
+			err:            context.DeadlineExceeded,
+			wantExit:       ExitFailure,
+			wantStatus:     analysis.StatusFailed,
+			wantDiagnostic: analysis.DiagnosticCodeAnalysisFailed,
+		},
 	}
 
 	for _, test := range tests {
@@ -397,7 +453,7 @@ func TestAnalyzeCancellationOverridesSuccessfulResult(t *testing.T) {
 			exitCode := Run(
 				ctx,
 				"test-version",
-				analyzer,
+				Services{Analysis: analyzer},
 				[]string{"analyze", "--format=json"},
 				&stdout,
 				&stderr,
@@ -434,7 +490,7 @@ func TestAnalyzeDetectsReportOutputFailure(t *testing.T) {
 	exitCode := Run(
 		t.Context(),
 		"test-version",
-		analyzer,
+		Services{Analysis: analyzer},
 		[]string{"analyze"},
 		failingWriter{err: errors.New("write failed")},
 		&stderr,
@@ -464,6 +520,7 @@ func completedReport() analysis.Report {
 		},
 		Ecosystems: []analysis.Ecosystem{{
 			ID:       "go",
+			Category: "language",
 			Evidence: []string{"go.mod"},
 		}},
 		Findings: []analysis.Finding{{

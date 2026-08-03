@@ -34,6 +34,7 @@ func TestReportValidateAcceptsImplementedResults(t *testing.T) {
 	addValidEcosystem(&completed)
 	completed.Ecosystems = append(completed.Ecosystems, Ecosystem{
 		ID:       "nodejs",
+		Category: "runtime",
 		Evidence: []string{"package-lock.json", "package.json"},
 	})
 	completed.Summary.EcosystemsDetected = len(completed.Ecosystems)
@@ -160,6 +161,16 @@ func TestReportValidateRejectsInvalidData(t *testing.T) {
 			},
 		},
 		{
+			name: "absolute path in diagnostic",
+			mutate: func(report *Report) {
+				report.Status = StatusPartial
+				report.Diagnostics = []Diagnostic{{
+					Code: "IATROS_TEST", Level: "warning",
+					Message: "open /private/secret: access denied",
+				}}
+			},
+		},
+		{
 			name: "blank ecosystem id",
 			mutate: func(report *Report) {
 				addValidEcosystem(report)
@@ -171,6 +182,20 @@ func TestReportValidateRejectsInvalidData(t *testing.T) {
 			mutate: func(report *Report) {
 				addValidEcosystem(report)
 				report.Ecosystems[0].ID = "Go"
+			},
+		},
+		{
+			name: "blank ecosystem category",
+			mutate: func(report *Report) {
+				addValidEcosystem(report)
+				report.Ecosystems[0].Category = ""
+			},
+		},
+		{
+			name: "invalid ecosystem category",
+			mutate: func(report *Report) {
+				addValidEcosystem(report)
+				report.Ecosystems[0].Category = "CI/CD"
 			},
 		},
 		{
@@ -219,7 +244,7 @@ func TestReportValidateRejectsInvalidData(t *testing.T) {
 			name: "unsorted ecosystems",
 			mutate: func(report *Report) {
 				report.Ecosystems = []Ecosystem{
-					{ID: "nodejs", Evidence: []string{"package.json"}},
+					{ID: "nodejs", Category: "runtime", Evidence: []string{"package.json"}},
 					validEcosystem(),
 				}
 				report.Summary.EcosystemsDetected = len(report.Ecosystems)
@@ -340,7 +365,7 @@ func addValidFinding(report *Report) {
 }
 
 func validEcosystem() Ecosystem {
-	return Ecosystem{ID: "go", Evidence: []string{"go.mod"}}
+	return Ecosystem{ID: "go", Category: "language", Evidence: []string{"go.mod"}}
 }
 
 func testFinding() Finding {

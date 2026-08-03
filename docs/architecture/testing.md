@@ -1,7 +1,7 @@
 # IATROS Testing Strategy
 
 > [!IMPORTANT]
-> **Status: target strategy with an initial unit-test baseline.** Package tests cover bounded local discovery, broad filename-based technology detection, the local analysis stub, and the Cobra CLI contract. CI, cross-component integration, end-to-end, security, performance, and resilience suites are not implemented yet.
+> **Status: target strategy with unit and local integration baselines.** Package tests cover bounded local discovery, broad filename-based technology detection, project/workspace boundary modeling, conservative readiness evaluation, manifest parsing, topology association, report validation, and the Cobra CLI. Cross-package tests exercise both real local analyzers through JSON CLI output. CI, external end-to-end, dedicated security, and resilience suites are not implemented yet.
 
 See also:
 
@@ -25,11 +25,15 @@ Test quantity is not a substitute for testing the correct boundary.
 
 ### Current baseline
 
-- `internal/analysis` tests cover bounded filesystem discovery, ignored VCS paths, access issues, cancellation, target validation, report invariants, safe evidence, and deterministic normalization.
-- `internal/detection` tests cover the language and dependency-manager baseline, all technology categories, nested marker matching, deterministic evidence bounds, unsafe paths, cancellation, catalog invariants, and conservative handling of generic filenames.
-- `internal/cli` tests cover help, version output, parsing, complete text and JSON reports, malformed analyzer outcomes, cancellation, output failures, target privacy, and exit-code mapping.
+- `internal/analysis` tests cover bounded filesystem discovery, ignored VCS and generated dependency paths, access issues, cancellation, target validation, orchestration across discovery, detection, readiness, manifests, and topology, partial-result diagnostics, both report contracts, safe paths, and deterministic normalization.
+- `internal/detection` tests cover the language and dependency-manager baseline, all technology categories, nested marker matching, deterministic evidence bounds, generated dependency filtering, unsafe paths, cancellation, catalog invariants, and conservative handling of generic filenames.
+- `internal/project` tests cover simple repositories, nested monorepositories, nearest-workspace selection, code/infrastructure/mixed classification, all marker rules, generated dependency paths, weak-marker rejection, evidence bounds, partial snapshots, unsafe paths, cancellation, determinism, and bounded-inventory performance.
+- `internal/readiness` tests cover all five rules, root-only foundations, supported test conventions, empty and infrastructure-only repositories, partial-snapshot suppression, deterministic ordering, unsafe input, cancellation, and bounded-snapshot performance.
+- `internal/manifest` tests cover all built-in formats, explicit empty workspaces, parser replacement and ownership isolation, strict structured-input guards, local and remote reference redaction, normal and maximum limit arithmetic, cancellation, deterministic normalization, and bounded performance.
+- `internal/topology` tests cover component and workspace association, empty and overlapping workspaces, manifest-scoped exclusions, local dependency resolution, malformed patterns, deduplicated safe issues, input-order-independent limits, cancellation during bounded selection, and large-snapshot performance.
+- `internal/cli` tests cover real local readiness and topology analysis, text and JSON rendering, output parity contracts, deep non-null collections, status-to-exit mapping, invalid targets, cancellation, malformed analyzer results, privacy, determinism, usage, version output, and writer failures.
 - The verified local commands are `go test ./...`, `go vet ./...`, and `go build ./...`.
-- No CI workflow or cross-component test suite exists yet.
+- No CI workflow or external-system integration suite exists yet.
 
 ## 2. Test placement
 
@@ -57,6 +61,8 @@ Each internal capability should verify:
 - boundary conditions and malformed input;
 - cancellation and deadline propagation;
 - deterministic ordering and output where users review diffs;
+- ownership isolation when a replaceable implementation returns mutable collections;
+- minimum, exact-limit, just-over-limit, and maximum representable configurations where arithmetic or allocation safety depends on the boundary;
 - absence of provider-specific assumptions;
 - evidence and provenance propagation;
 - authorization and effect-class requirements for state-changing use cases.
@@ -147,6 +153,8 @@ The future test suite must include negative cases for:
 | Malicious or revoked plugin | Package integrity, provenance, compatibility, capability, egress, resource, filesystem, data, and revocation limits are enforced. |
 | Sandbox escape or cross-job residue | A task cannot observe prior-job data, survive cancellation, exceed resource bounds, or escape its execution boundary. |
 | Payload exhaustion | Size, recursion, decompression, output, process, memory, and time limits fail safely. |
+| Malicious manifest | Traversal, links, file replacement, exact or case-fold-equivalent duplicate JSON keys, trailing data, DTD/entity declarations, excessive nesting, oversized values, local or credential-bearing references, and malformed parser output fail safely or are redacted. |
+| Ambiguous topology | Empty or overlapping workspaces, manifest-scoped exclusions, unmatched members, unsupported glob semantics, duplicate package identities or issues, partial evidence, and relationship limits remain explicit, bounded, and deterministic rather than being guessed. |
 | Audit tampering or outage | Alteration, deletion, reordering, and delivery failure are detectable; effects fail closed or become indeterminate when durable evidence cannot be guaranteed. |
 | Break-glass misuse | Strong identity, narrow scope, expiry, reason, alerting, post-review, and uninterrupted audit are enforced. |
 
@@ -176,6 +184,7 @@ The initial corpus, scoring method, thresholds, reviewer process, and release ga
 Tests should:
 
 - use fixed clocks, random seeds, identifiers, and stable ordering when output is reviewed or hashed;
+- reverse and duplicate over-limit inputs to prove bounded selection is independent of caller order;
 - keep golden artifacts explicit and reviewable;
 - use sanitized, minimal fixtures with documented provenance;
 - avoid real credentials, personal data, and copied production logs;
@@ -187,6 +196,8 @@ Tests should:
 Golden files are appropriate for generated plans and artifacts only when semantic assertions accompany them.
 
 ## 7. Resilience and performance verification
+
+The current local analyzers have focused tests that cancel before work, between composed stages, and during bounded topology selection. A canceled or expired context must prevent the next stage from running and must discard accumulated output rather than returning a partial success.
 
 When distributed runtime components exist, tests should cover:
 
