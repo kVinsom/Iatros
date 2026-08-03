@@ -33,23 +33,34 @@ type LocalTopologyAnalyzer struct {
 	projects  projectBoundaryDetector
 	manifests manifestFactAnalyzer
 	topology  topologyModelBuilder
+	profile   ScalingProfileName
 }
 
 // NewLocalTopologyAnalyzer creates the local topology pipeline with conservative profiles.
 func NewLocalTopologyAnalyzer() (LocalTopologyAnalyzer, error) {
-	discovery, err := NewLocalDiscovery(DefaultDiscoveryLimits())
+	return NewLocalTopologyAnalyzerWithProfile(SmallScalingProfile())
+}
+
+// NewLocalTopologyAnalyzerWithProfile creates the topology pipeline with one validated profile.
+func NewLocalTopologyAnalyzerWithProfile(
+	profile ScalingProfile,
+) (LocalTopologyAnalyzer, error) {
+	if err := profile.Validate(); err != nil {
+		return LocalTopologyAnalyzer{}, err
+	}
+	discovery, err := NewLocalDiscovery(profile.Discovery)
 	if err != nil {
 		return LocalTopologyAnalyzer{}, err
 	}
-	projects, err := project.NewDetector(project.DefaultLimits())
+	projects, err := project.NewDetector(profile.Project)
 	if err != nil {
 		return LocalTopologyAnalyzer{}, err
 	}
-	manifests, err := manifest.NewDefaultAnalyzer(manifest.DefaultLimits())
+	manifests, err := manifest.NewDefaultAnalyzer(profile.Manifest)
 	if err != nil {
 		return LocalTopologyAnalyzer{}, err
 	}
-	topologyBuilder, err := topology.NewBuilder(topology.DefaultLimits())
+	topologyBuilder, err := topology.NewBuilder(profile.Topology)
 	if err != nil {
 		return LocalTopologyAnalyzer{}, err
 	}
@@ -58,11 +69,20 @@ func NewLocalTopologyAnalyzer() (LocalTopologyAnalyzer, error) {
 		projects:  projects,
 		manifests: manifests,
 		topology:  topologyBuilder,
+		profile:   profile.Name,
 	}, nil
 }
 
 // Analyze builds local repository topology without executing code, using the network, or writing files.
 func (a LocalTopologyAnalyzer) Analyze(ctx context.Context, request Request) (topology.Model, error) {
+	profile := normalizedScalingProfileName(a.profile)
+	requestedProfile := request.Profile
+	if requestedProfile == "" {
+		requestedProfile = profile
+	}
+	if requestedProfile != profile {
+		return topology.Model{}, ErrScalingProfileUnavailable
+	}
 	if err := ctx.Err(); err != nil {
 		return topology.Model{}, err
 	}
@@ -102,11 +122,19 @@ func (a LocalTopologyAnalyzer) Analyze(ctx context.Context, request Request) (to
 		return topology.Model{}, err
 	}
 
-	return a.topology.Build(ctx, topology.Snapshot{
-		Projects:  projects,
-		Manifests: manifests,
-		Issues:    topologyIssuesFromDiscovery(inventory.Issues),
+	model, err := a.topology.Build(ctx, topology.Snapshot{
+		Projects:           projects,
+		Manifests:          manifests,
+		NestedRepositories: inventory.NestedRepositories,
+		Issues:             topologyIssuesFromDiscovery(inventory.Issues),
 	})
+	if err != nil {
+		return topology.Model{}, err
+	}
+	if err := ctx.Err(); err != nil {
+		return topology.Model{}, err
+	}
+	return model, nil
 }
 
 func topologyIssuesFromDiscovery(values []DiscoveryIssue) []topology.Issue {

@@ -22,11 +22,15 @@ func run() int {
 	defer stop()
 
 	services := cli.Services{}
-	localAnalyzer, err := analysis.NewLocalAnalyzer()
+	profiles := []analysis.ScalingProfile{
+		analysis.SmallScalingProfile(),
+		analysis.MonorepoScalingProfile(),
+	}
+	localAnalyzer, err := analysis.NewProfiledLocalAnalyzer(profiles...)
 	if err == nil {
 		services.Analysis = localAnalyzer
 	}
-	localTopologyAnalyzer, err := analysis.NewLocalTopologyAnalyzer()
+	localTopologyAnalyzer, err := analysis.NewProfiledLocalTopologyAnalyzer(profiles...)
 	if err == nil {
 		services.Topology = localTopologyAnalyzer
 	}

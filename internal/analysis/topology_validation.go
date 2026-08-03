@@ -13,6 +13,7 @@ import (
 func (r TopologyReport) Validate() error {
 	if r.SchemaVersion != TopologySchemaVersion ||
 		r.ReportType != ReportTypeRepositoryTopology ||
+		!validScalingProfileName(r.Profile) ||
 		r.Target.Kind != TargetKindLocalDirectory ||
 		r.Target.Path != TargetRootPath ||
 		!validTopologyStatus(r.Status) ||
@@ -30,14 +31,44 @@ func validTopologyStatus(status Status) bool {
 func validTopologyData(report TopologyReport) bool {
 	if report.Status == StatusFailed {
 		return report.Summary == (TopologySummary{}) && len(report.Projects) == 0 &&
-			len(report.Workspaces) == 0 && len(report.Dependencies) == 0
+			len(report.Workspaces) == 0 && len(report.Dependencies) == 0 &&
+			len(report.NestedRepositories) == 0
 	}
 	if !validTopologyProjects(report.Projects) || !validTopologyWorkspaces(report.Workspaces) ||
 		!validTopologyDependencies(report.Dependencies) ||
+		!validSortedRelativePaths(report.NestedRepositories) ||
+		!validNestedRepositoryBoundaries(report) ||
 		!validTopologyRelationships(report) {
 		return false
 	}
 	return report.Summary == topologySummary(report)
+}
+
+func validNestedRepositoryBoundaries(report TopologyReport) bool {
+	boundaries := make(map[string]struct{}, len(report.NestedRepositories))
+	for _, root := range report.NestedRepositories {
+		for ancestor := path.Dir(root); ancestor != "."; ancestor = path.Dir(ancestor) {
+			if _, nested := boundaries[ancestor]; nested {
+				return false
+			}
+		}
+		boundaries[root] = struct{}{}
+	}
+	for _, project := range report.Projects {
+		for ancestor := project.Root; ancestor != "."; ancestor = path.Dir(ancestor) {
+			if _, nested := boundaries[ancestor]; nested {
+				return false
+			}
+		}
+	}
+	for _, workspace := range report.Workspaces {
+		for ancestor := workspace.Root; ancestor != "."; ancestor = path.Dir(ancestor) {
+			if _, nested := boundaries[ancestor]; nested {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func validTopologyProjects(values []TopologyProject) bool {

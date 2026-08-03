@@ -9,6 +9,7 @@ import (
 // Validate checks the semantic invariants required by the stable report contract.
 func (r Report) Validate() error {
 	if r.SchemaVersion != SchemaVersion ||
+		!validScalingProfileName(r.Profile) ||
 		r.Target.Kind != TargetKindLocalDirectory ||
 		r.Target.Path != TargetRootPath ||
 		!validStatus(r.Status) ||
@@ -33,6 +34,7 @@ func validStatus(status Status) bool {
 func validSummary(summary Summary, ecosystems, findings int) bool {
 	return summary.DirectoriesScanned >= 0 &&
 		summary.FilesScanned >= 0 &&
+		summary.NestedRepositoriesSkipped >= 0 &&
 		summary.EcosystemsDetected == ecosystems &&
 		summary.FindingsTotal == findings
 }

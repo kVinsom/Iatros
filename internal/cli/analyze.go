@@ -10,13 +10,14 @@ import (
 )
 
 type analyzeOptions struct {
-	format string
+	format  string
+	profile string
 }
 
 var errAnalysisUnavailable = errors.New("analysis service is not configured")
 
 func newAnalyzeCommand(analyzer Analyzer) *cobra.Command {
-	options := analyzeOptions{format: formatText}
+	options := analyzeOptions{format: formatText, profile: defaultScalingProfile}
 
 	command := &cobra.Command{
 		Use:   "analyze [path]",
@@ -26,8 +27,15 @@ func newAnalyzeCommand(analyzer Analyzer) *cobra.Command {
 			if err := validateReportFormat(options.format); err != nil {
 				return err
 			}
+			profile, err := basicScalingProfile(options.profile)
+			if err != nil {
+				return err
+			}
 
-			report, analyzeErr := analyze(cmd.Context(), analyzer, commandTarget(args))
+			report, analyzeErr := analyze(cmd.Context(), analyzer, analysis.Request{
+				Root:    commandTarget(args),
+				Profile: profile,
+			})
 			if err := writeReport(cmd.OutOrStdout(), options.format, report); err != nil {
 				return newExitError(ExitFailure, "could not write analysis report")
 			}
@@ -42,34 +50,49 @@ func newAnalyzeCommand(analyzer Analyzer) *cobra.Command {
 		formatText,
 		"report format: text or json",
 	)
+	command.Flags().StringVar(
+		&options.profile,
+		"profile",
+		defaultScalingProfile,
+		"scaling profile: small or monorepo",
+	)
 
 	return command
 }
 
-func analyze(ctx context.Context, analyzer Analyzer, root string) (analysis.Report, error) {
+func analyze(
+	ctx context.Context,
+	analyzer Analyzer,
+	request analysis.Request,
+) (analysis.Report, error) {
 	if err := ctx.Err(); err != nil {
-		return analysis.NewCanceledReport(), err
+		return reportForProfile(analysis.NewCanceledReport(), request.Profile), err
 	}
 
 	if analyzer == nil {
-		return failedReport(
+		return failedReportForProfile(
+			request.Profile,
 			analysis.DiagnosticCodeAnalysisUnavailable,
 			"Local repository analysis is unavailable.",
 		), errAnalysisUnavailable
 	}
 
-	report, err := analyzer.Analyze(ctx, analysis.Request{Root: root})
+	report, err := analyzer.Analyze(ctx, request)
 	if contextErr := ctx.Err(); contextErr != nil {
-		return analysis.NewCanceledReport(), contextErr
+		return reportForProfile(analysis.NewCanceledReport(), request.Profile), contextErr
 	}
 	if errors.Is(err, context.Canceled) {
-		return analysis.NewCanceledReport(), err
+		return reportForProfile(analysis.NewCanceledReport(), request.Profile), err
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
-		return analysis.NewAnalysisFailedReport(), err
+		return reportForProfile(analysis.NewAnalysisFailedReport(), request.Profile), err
 	}
-	if report.Validate() != nil || !outcomeMatchesReport(report, err) {
-		return analysis.NewAnalysisFailedReport(), analysis.ErrInvalidReport
+	if report.Validate() != nil || report.Profile != request.Profile ||
+		!outcomeMatchesReport(report, err) {
+		return reportForProfile(
+			analysis.NewAnalysisFailedReport(),
+			request.Profile,
+		), analysis.ErrInvalidReport
 	}
 
 	return report, err
@@ -118,4 +141,20 @@ func failedReport(code, message string) analysis.Report {
 		Level:   "error",
 		Message: message,
 	})
+}
+
+func failedReportForProfile(
+	profile analysis.ScalingProfileName,
+	code string,
+	message string,
+) analysis.Report {
+	return reportForProfile(failedReport(code, message), profile)
+}
+
+func reportForProfile(
+	report analysis.Report,
+	profile analysis.ScalingProfileName,
+) analysis.Report {
+	report.Profile = profile
+	return report
 }

@@ -60,6 +60,7 @@ func TestNewTopologyReportMapsStableContract(t *testing.T) {
 				Resolution: topology.DependencyInternal, TargetProjects: []string{"."},
 			},
 		},
+		NestedRepositories: []string{"tools/external", "vendor/library"},
 		Issues: []topology.Issue{{
 			Code: "IATROS_MANIFEST_PARSE_FAILED", Path: "packages/broken/package.json",
 			Message: "the manifest could not be parsed safely",
@@ -78,6 +79,7 @@ func TestNewTopologyReportMapsStableContract(t *testing.T) {
 	wantSummary := TopologySummary{
 		ProjectsTotal: 2, WorkspacesTotal: 1, ComponentsTotal: 2,
 		DependenciesTotal: 2, InternalDependencies: 1, UnresolvedDependencies: 1,
+		NestedRepositoriesSkipped: 2,
 	}
 	if report.Summary != wantSummary {
 		t.Fatalf("Summary = %+v, want %+v", report.Summary, wantSummary)
@@ -92,8 +94,10 @@ func TestNewTopologyReportMapsStableContract(t *testing.T) {
 
 	model.Projects[0].WorkspaceRoots[0] = "changed"
 	model.Dependencies[1].TargetProjects[0] = "changed"
+	model.NestedRepositories[0] = "changed"
 	if report.Projects[0].WorkspaceRoots[0] != "." ||
-		report.Dependencies[1].TargetProjects[0] != "." {
+		report.Dependencies[1].TargetProjects[0] != "." ||
+		report.NestedRepositories[0] != "tools/external" {
 		t.Fatal("NewTopologyReport() retained caller-owned slices")
 	}
 }
@@ -251,11 +255,31 @@ func TestTopologyReportValidateRejectsUnsafeOrContradictoryData(t *testing.T) {
 	}{
 		{name: "schema", mutate: func(report *TopologyReport) { report.SchemaVersion = "9" }},
 		{name: "report type", mutate: func(report *TopologyReport) { report.ReportType = "other" }},
+		{name: "profile", mutate: func(report *TopologyReport) { report.Profile = "large" }},
 		{name: "absolute root", mutate: func(report *TopologyReport) { report.Projects[0].Root = "/private" }},
 		{name: "unsafe manifest", mutate: func(report *TopologyReport) {
 			report.Projects[0].Components[0].ManifestPath = "../go.mod"
 		}},
 		{name: "summary mismatch", mutate: func(report *TopologyReport) { report.Summary.ComponentsTotal++ }},
+		{name: "unsafe nested repository", mutate: func(report *TopologyReport) {
+			report.NestedRepositories = []string{"../outside"}
+			report.Summary.NestedRepositoriesSkipped = 1
+		}},
+		{name: "unsorted nested repositories", mutate: func(report *TopologyReport) {
+			report.NestedRepositories = []string{"vendor/library", "tools/external"}
+			report.Summary.NestedRepositoriesSkipped = 2
+		}},
+		{name: "overlapping nested repositories", mutate: func(report *TopologyReport) {
+			report.NestedRepositories = []string{"packages", "packages/api"}
+			report.Summary.NestedRepositoriesSkipped = 2
+		}},
+		{name: "nested repository contains project", mutate: func(report *TopologyReport) {
+			report.Projects[0].Root = "packages/api"
+			report.Projects[0].Markers[0].Evidence = []string{"packages/api/go.mod"}
+			report.Projects[0].Components[0].ManifestPath = "packages/api/go.mod"
+			report.NestedRepositories = []string{"packages"}
+			report.Summary.NestedRepositoriesSkipped = 1
+		}},
 		{name: "completed diagnostic", mutate: func(report *TopologyReport) {
 			report.Diagnostics = []Diagnostic{{Code: "IATROS_TEST", Level: "warning", Message: "Unexpected."}}
 		}},
@@ -455,7 +479,8 @@ func TestTopologyReportNormalizedDeepCopiesCollections(t *testing.T) {
 		normalized.Projects[0].Components == nil ||
 		normalized.Workspaces[0].ContainedProjects == nil ||
 		normalized.Workspaces[0].Declarations[0].ProjectRoots == nil ||
-		normalized.Dependencies[0].TargetProjects == nil || normalized.Diagnostics == nil {
+		normalized.Dependencies[0].TargetProjects == nil ||
+		normalized.NestedRepositories == nil || normalized.Diagnostics == nil {
 		t.Fatal("Normalized() left a nested collection nil")
 	}
 	if report.Projects[0].WorkspaceRoots != nil || report.Projects[0].Markers[0].Evidence != nil ||

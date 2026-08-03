@@ -3,6 +3,7 @@ package analysis
 import (
 	"context"
 	"errors"
+	"math"
 	"time"
 )
 
@@ -19,6 +20,20 @@ const (
 	DiscoveryIssueDirectoryLimit = "IATROS_DISCOVERY_DIRECTORY_LIMIT"
 	// DiscoveryIssueDirectoryEntryLimit identifies a directory that exceeded its entry limit.
 	DiscoveryIssueDirectoryEntryLimit = "IATROS_DISCOVERY_DIRECTORY_ENTRY_LIMIT"
+	// DiscoveryIssueIgnoreFileLimit identifies ignore files omitted by the configured limit.
+	DiscoveryIssueIgnoreFileLimit = "IATROS_DISCOVERY_IGNORE_FILE_LIMIT"
+	// DiscoveryIssueIgnoreFileTooLarge identifies an ignore file skipped before reading.
+	DiscoveryIssueIgnoreFileTooLarge = "IATROS_DISCOVERY_IGNORE_FILE_TOO_LARGE"
+	// DiscoveryIssueIgnoreReadFailed identifies an ignore file that could not be read safely.
+	DiscoveryIssueIgnoreReadFailed = "IATROS_DISCOVERY_IGNORE_READ_FAILED"
+	// DiscoveryIssueIgnoreRuleInvalid identifies malformed ignore patterns that were not applied.
+	DiscoveryIssueIgnoreRuleInvalid = "IATROS_DISCOVERY_IGNORE_RULE_INVALID"
+	// DiscoveryIssueIgnoreRuleLimit identifies rules omitted by the configured limit.
+	DiscoveryIssueIgnoreRuleLimit = "IATROS_DISCOVERY_IGNORE_RULE_LIMIT"
+	// DiscoveryIssueGitmodulesInvalid identifies an unsafe or malformed submodule declaration.
+	DiscoveryIssueGitmodulesInvalid = "IATROS_DISCOVERY_GITMODULES_INVALID"
+	// DiscoveryIssueNestedRepositoryLimit identifies nested repository boundaries omitted by limits.
+	DiscoveryIssueNestedRepositoryLimit = "IATROS_DISCOVERY_NESTED_REPOSITORY_LIMIT"
 	// DiscoveryIssueTimeout identifies a scan stopped at its internal time limit.
 	DiscoveryIssueTimeout = "IATROS_DISCOVERY_TIMEOUT"
 	// DiscoveryIssueLimit identifies omitted discovery issues.
@@ -35,6 +50,11 @@ type DiscoveryLimits struct {
 	MaxDepth               int
 	MaxIssues              int
 	MaxEntriesPerDirectory int
+	MaxIgnoreFiles         int
+	MaxControlFileBytes    int64
+	MaxIgnorePatternBytes  int
+	MaxIgnoreRules         int
+	MaxNestedRepositories  int
 	Timeout                time.Duration
 }
 
@@ -46,6 +66,11 @@ func DefaultDiscoveryLimits() DiscoveryLimits {
 		MaxDepth:               20,
 		MaxIssues:              50,
 		MaxEntriesPerDirectory: 2_500,
+		MaxIgnoreFiles:         100,
+		MaxControlFileBytes:    256 * 1024,
+		MaxIgnorePatternBytes:  4 * 1024,
+		MaxIgnoreRules:         10_000,
+		MaxNestedRepositories:  100,
 		Timeout:                5 * time.Second,
 	}
 }
@@ -57,6 +82,12 @@ func (l DiscoveryLimits) Validate() error {
 		l.MaxDepth < 0 ||
 		l.MaxIssues <= 0 ||
 		l.MaxEntriesPerDirectory <= 0 ||
+		l.MaxIgnoreFiles <= 0 || l.MaxIgnoreFiles > l.MaxDirectories ||
+		l.MaxControlFileBytes <= 0 || l.MaxControlFileBytes == math.MaxInt64 ||
+		l.MaxIgnorePatternBytes <= 0 ||
+		int64(l.MaxIgnorePatternBytes) > l.MaxControlFileBytes ||
+		l.MaxIgnoreRules <= 0 ||
+		l.MaxNestedRepositories <= 0 || l.MaxNestedRepositories > l.MaxDirectories ||
 		l.Timeout <= 0 {
 		return ErrInvalidDiscoveryLimits
 	}
@@ -72,10 +103,11 @@ type DiscoveryIssue struct {
 
 // Inventory is a bounded, root-relative filesystem snapshot without file content.
 type Inventory struct {
-	Directories []string
-	Files       []string
-	Issues      []DiscoveryIssue
-	Partial     bool
+	Directories        []string
+	Files              []string
+	NestedRepositories []string
+	Issues             []DiscoveryIssue
+	Partial            bool
 }
 
 // LocalDiscovery inventories a selected local directory within explicit limits.
@@ -91,7 +123,7 @@ func NewLocalDiscovery(limits DiscoveryLimits) (LocalDiscovery, error) {
 	return LocalDiscovery{limits: limits}, nil
 }
 
-// Discover inventories metadata beneath one local root without reading file contents.
+// Discover inventories one local root and reads only bounded repository control files.
 func (d LocalDiscovery) Discover(ctx context.Context, rootPath string) (Inventory, error) {
 	inventory := emptyInventory()
 	if err := d.limits.Validate(); err != nil {
@@ -139,9 +171,10 @@ func (d LocalDiscovery) Discover(ctx context.Context, rootPath string) (Inventor
 
 func emptyInventory() Inventory {
 	return Inventory{
-		Directories: make([]string, 0),
-		Files:       make([]string, 0),
-		Issues:      make([]DiscoveryIssue, 0),
+		Directories:        make([]string, 0),
+		Files:              make([]string, 0),
+		NestedRepositories: make([]string, 0),
+		Issues:             make([]DiscoveryIssue, 0),
 	}
 }
 

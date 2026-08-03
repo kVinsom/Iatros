@@ -35,9 +35,10 @@ type MemberResolution string
 
 // Snapshot contains the normalized boundary and manifest results to associate.
 type Snapshot struct {
-	Projects  project.Model
-	Manifests manifest.Result
-	Issues    []Issue
+	Projects           project.Model
+	Manifests          manifest.Result
+	NestedRepositories []string
+	Issues             []Issue
 }
 
 // Marker records one project or workspace boundary signal.
@@ -124,9 +125,10 @@ type Issue struct {
 
 // Model is the deterministic provider-neutral topology of one repository snapshot.
 type Model struct {
-	Projects     []Project
-	Workspaces   []Workspace
-	Dependencies []Dependency
-	Issues       []Issue
-	Partial      bool
+	Projects           []Project
+	Workspaces         []Workspace
+	Dependencies       []Dependency
+	NestedRepositories []string
+	Issues             []Issue
+	Partial            bool
 }

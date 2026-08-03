@@ -52,6 +52,7 @@ func writeTextReport(writer io.Writer, report analysis.Report) error {
 
 	output.line("IATROS Local Repository Analysis")
 	output.printf("Status: %s\n", textStatus(report.Status))
+	output.printf("Profile: %s\n", report.Profile)
 	output.printf("Target: %s\n\n", report.Target.Path)
 
 	switch report.Status {
@@ -74,6 +75,7 @@ func writeTextSummary(output *textWriter, summary analysis.Summary) {
 	output.line("Summary:")
 	output.printf("- Directories scanned: %d\n", summary.DirectoriesScanned)
 	output.printf("- Files scanned: %d\n", summary.FilesScanned)
+	output.printf("- Nested repositories skipped: %d\n", summary.NestedRepositoriesSkipped)
 	output.printf("- Ecosystems detected: %d\n", summary.EcosystemsDetected)
 	output.printf("- Findings total: %d\n", summary.FindingsTotal)
 }

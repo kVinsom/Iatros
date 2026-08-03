@@ -1,7 +1,7 @@
 # IATROS Documentation
 
 > [!IMPORTANT]
-> IATROS is in early implementation. A local Cobra-based CLI runs bounded metadata discovery, technology detection, readiness evaluation, and deterministic reporting. The same CLI exposes a separate bounded repository-topology report built from project boundaries and safely parsed manifests.
+> IATROS is in early implementation. A local Cobra-based CLI runs bounded Git-style ignore handling, submodule isolation, metadata discovery, technology detection, readiness evaluation, and deterministic reporting. The same CLI exposes a separate bounded repository-topology report built from project boundaries and safely parsed manifests. Both workflows support explicit `small` and `monorepo` scaling profiles.
 
 ## Product specifications
 
@@ -12,6 +12,8 @@
 
 - [Manifest analysis architecture](architecture/manifest-analysis.md) - bounded content access, supported formats, normalized facts, parser safety, resource profiles, and backend replacement rules.
 - [Repository topology architecture](architecture/topology.md) - project/component association, workspace membership, direct dependency resolution, limits, and partial-state rules.
+- [Repository discovery architecture](architecture/repository-discovery.md) - bounded Git-style ignore rules, large-file behavior, nested repositories, and submodule isolation.
+- [Scaling profiles](architecture/scaling-profiles.md) - unified small-repository, monorepo, and Enterprise per-worker budgets plus selection and validation rules.
 - [Technology detection architecture](architecture/detection.md) — internal marker catalog, evidence rules, categories, limits, and extension requirements.
 - [Project and workspace boundary model](architecture/project-model.md) — internal monorepository boundaries, strong markers, workspace membership, limits, and deferred enrichment.
 - [Repository readiness architecture](architecture/readiness.md) — internal absence rules, suppression policy, supported test evidence, and deferred checks.

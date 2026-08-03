@@ -1,7 +1,7 @@
 # IATROS Target Architecture
 
 > [!IMPORTANT]
-> **Status: target architecture with an integrated local analysis slice.** The root Go module and Cobra CLI expose bounded metadata analysis and a separate bounded repository-topology workflow. Project boundaries, allowlisted manifests, workspaces, and direct dependency edges map to deterministic topology text and JSON without changing the established readiness-report schema. Every broader runtime, API, SDK, plugin, workflow, and security capability remains target behavior unless explicitly marked otherwise.
+> **Status: target architecture with an integrated local analysis slice.** The root Go module and Cobra CLI expose bounded ignore-aware analysis and a separate bounded repository-topology workflow. Both use unified `small` or `monorepo` resource profiles and produce deterministic schema `0.3` text and JSON. A validated Enterprise per-worker profile exists for entitlement-aware composition. Every broader runtime, API, SDK, plugin, workflow, and security capability remains target behavior unless explicitly marked otherwise.
 
 Related documents:
 
@@ -11,12 +11,14 @@ Related documents:
 - [Project and workspace boundary model](project-model.md)
 - [Manifest analysis architecture](manifest-analysis.md)
 - [Repository topology architecture](topology.md)
+- [Repository discovery architecture](repository-discovery.md)
+- [Scaling profiles](scaling-profiles.md)
 - [Repository readiness architecture](readiness.md)
 - [Architecture decision records](decisions/README.md)
 
 ## 1. Status and scope
 
-The repository contains the canonical directory scaffold, project metadata, branding, documentation, one root Go module, and tested `iatros analyze` and `iatros topology` workflows. The first command integrates bounded metadata discovery, broad marker detection, five conservative readiness rules, discovery diagnostics, and semantically equivalent text and JSON output. The second detects nested boundaries, parses allowlisted manifests, resolves workspace membership, identifies direct local dependency edges, and maps them to its own versioned CLI report. The repository does not yet contain network API schemas, deployment configuration, CI workflows, or releases.
+The repository contains the canonical directory scaffold, project metadata, branding, documentation, one root Go module, and tested `iatros analyze` and `iatros topology` workflows. The first command integrates bounded root and nested ignore rules, submodule isolation, metadata discovery, broad marker detection, five conservative readiness rules, discovery diagnostics, and semantically equivalent text and JSON output. The second detects nested boundaries, parses allowlisted manifests, resolves workspace membership, identifies direct local dependency edges, and maps them to its own versioned CLI report. One validated scaling selection configures both complete pipelines. The repository does not yet contain network API schemas, deployment configuration, CI workflows, or releases.
 
 This document establishes:
 
@@ -92,7 +94,7 @@ External repositories, provider responses, plugin output, and model output are d
 9. **No speculative hierarchy.** Add vendor, version, transport, or deployment-specific packages only when real implementation requires them.
 10. **One initial Go module.** First-party Go packages share `github.com/kVinsom/Iatros` until an independently released component justifies a split.
 11. **Isolated CLI framework.** Cobra remains inside the CLI adapter; provider-neutral analysis and domain packages do not depend on it.
-12. **Scalable profiles and replaceable backends.** Core contracts must support conservative small-repository defaults and validated large-repository profiles. File size, count, memory, and time budgets remain injectable, while parser and processing implementations may be replaced behind consumer-owned interfaces when measured requirements justify a standard-library, third-party, generated, or streaming backend.
+12. **Scalable profiles and replaceable backends.** The implemented `small`, `monorepo`, and Enterprise per-worker profiles configure the complete local pipeline through validated file, count, retained-value, and time budgets. Parser and processing implementations may be replaced behind consumer-owned interfaces when measured requirements justify a standard-library, third-party, generated, or streaming backend. See [Scaling profiles](scaling-profiles.md).
 
 These established constraints are recorded in [ADR-0001](decisions/0001-capability-boundaries-and-dependency-direction.md), [ADR-0002](decisions/0002-single-community-core-with-optional-overlays.md), [ADR-0003](decisions/0003-start-with-one-go-module.md), and [ADR-0005](decisions/0005-use-cobra-as-the-cli-adapter.md).
 
@@ -177,7 +179,7 @@ The following paths define capability ownership. Analysis orchestration, discove
 | `internal/project` | Provider-neutral project and workspace boundary model consumed by topology analysis. |
 | `internal/manifest` | Bounded, provider-neutral manifest parsing, normalization, resource profiles, and replaceable parser contracts. |
 | `internal/topology` | Deterministic project/component association, workspace relationships, and direct local dependency resolution. |
-| `internal/analysis` | Bounded discovery, analysis orchestration, topology analysis, and versioned CLI report contracts. |
+| `internal/analysis` | Unified scaling profiles, bounded discovery, analysis orchestration, topology analysis, and versioned CLI report contracts. |
 | `internal/detection` | Evidence-based identification of languages, runtimes, dependency managers, and DevOps tooling. |
 | `internal/readiness` | Deterministic repository-readiness rules and private findings. |
 | `internal/assistant` | Provider-neutral planning, context assembly, risk reasoning, and root-cause-analysis coordination. |
@@ -320,7 +322,8 @@ The approval and execution semantics remain proposed until [ADR-0004](decisions/
 | --- | --- | --- |
 | Canonical project model | `internal/project` | Private, provider-neutral representation; schema is TBD. |
 | Normalized manifest facts | `internal/manifest` | Private direct declarations mapped through the topology report contract. |
-| Repository topology | `internal/topology` and `internal/analysis` | Private associated model plus versioned CLI schema `0.1`; no network API contract yet. |
+| Repository discovery | `internal/analysis` and `internal/repositoryignore` | Bounded local inventory, Git-style ignore rules, large-file controls, and nested-repository isolation. |
+| Repository topology | `internal/topology` and `internal/analysis` | Private associated model plus versioned CLI schema `0.3`; no network API contract yet. |
 | Evidence and findings | Consuming internal domains | Interfaces and types remain near consumers. |
 | Plans and candidate artifacts | `internal/assistant` and `internal/generation` | Not executable authority by themselves. |
 | Validation results | `internal/doctor` | Normalized diagnostics with provenance. |
@@ -380,6 +383,7 @@ The following choices remain intentionally unresolved:
 - whether the product remains local-first after the approved local repository-analysis slice or introduces a control plane for later workflows;
 - API transport, wire format, and versioning;
 - workflow persistence, queues, retries, idempotency, cancellation, and recovery;
+- distributed Enterprise admission, worker classes, concurrency, autoscaling, isolation, and capacity planning beyond the implemented per-worker profile;
 - authentication, authorization, resource hierarchy, tenancy, and audit model;
 - plugin process isolation, capability negotiation, signing, distribution, revocation, and compatibility;
 - agent trust bootstrap, sandboxing, network policy, updates, and secret delivery;

@@ -1,12 +1,14 @@
 # IATROS Testing Strategy
 
 > [!IMPORTANT]
-> **Status: target strategy with unit and local integration baselines.** Package tests cover bounded local discovery, broad filename-based technology detection, project/workspace boundary modeling, conservative readiness evaluation, manifest parsing, topology association, report validation, and the Cobra CLI. Cross-package tests exercise both real local analyzers through JSON CLI output. CI, external end-to-end, dedicated security, and resilience suites are not implemented yet.
+> **Status: target strategy with unit and local integration baselines.** Package tests cover unified scaling profiles, bounded Git-style ignore rules, submodule and nested-worktree isolation, large-file behavior, local discovery, broad filename-based technology detection, project/workspace boundary modeling, conservative readiness evaluation, manifest parsing, topology association, report validation, and the Cobra CLI. Cross-package tests exercise both real local analyzers through JSON CLI output. CI, external end-to-end, dedicated security, and resilience suites are not implemented yet.
 
 See also:
 
 - [Target architecture](README.md)
 - [Security architecture](security.md)
+- [Scaling profiles](scaling-profiles.md)
+- [Repository discovery architecture](repository-discovery.md)
 - [Architecture decision records](decisions/README.md)
 
 ## 1. Objectives
@@ -25,13 +27,14 @@ Test quantity is not a substitute for testing the correct boundary.
 
 ### Current baseline
 
-- `internal/analysis` tests cover bounded filesystem discovery, ignored VCS and generated dependency paths, access issues, cancellation, target validation, orchestration across discovery, detection, readiness, manifests, and topology, partial-result diagnostics, both report contracts, safe paths, and deterministic normalization.
+- `internal/repositoryignore` tests cover root and nested scope, last-match precedence, negation, anchored and directory-only rules, escapes, character patterns, all defined globstar positions, malformed input, and rule bounds.
+- `internal/analysis` tests cover all three unified profile contracts, enabled and unavailable profile selection, bounded filesystem discovery, root and nested ignore files, conservative limit failures, declared submodules, nested Git worktrees, oversized manifests, mixed nested projects, ignored VCS and generated dependency paths, access issues, cancellation, target validation, orchestration across discovery, detection, readiness, manifests, and topology, partial-result diagnostics, both report contracts, safe paths, and deterministic normalization.
 - `internal/detection` tests cover the language and dependency-manager baseline, all technology categories, nested marker matching, deterministic evidence bounds, generated dependency filtering, unsafe paths, cancellation, catalog invariants, and conservative handling of generic filenames.
 - `internal/project` tests cover simple repositories, nested monorepositories, nearest-workspace selection, code/infrastructure/mixed classification, all marker rules, generated dependency paths, weak-marker rejection, evidence bounds, partial snapshots, unsafe paths, cancellation, determinism, and bounded-inventory performance.
 - `internal/readiness` tests cover all five rules, root-only foundations, supported test conventions, empty and infrastructure-only repositories, partial-snapshot suppression, deterministic ordering, unsafe input, cancellation, and bounded-snapshot performance.
 - `internal/manifest` tests cover all built-in formats, explicit empty workspaces, parser replacement and ownership isolation, strict structured-input guards, local and remote reference redaction, normal and maximum limit arithmetic, cancellation, deterministic normalization, and bounded performance.
-- `internal/topology` tests cover component and workspace association, empty and overlapping workspaces, manifest-scoped exclusions, local dependency resolution, malformed patterns, deduplicated safe issues, input-order-independent limits, cancellation during bounded selection, and large-snapshot performance.
-- `internal/cli` tests cover real local readiness and topology analysis, text and JSON rendering, output parity contracts, deep non-null collections, status-to-exit mapping, invalid targets, cancellation, malformed analyzer results, privacy, determinism, usage, version output, and writer failures.
+- `internal/topology` tests cover component and workspace association, nested-repository retention and overlap rejection, empty and overlapping workspaces, manifest-scoped exclusions, local dependency resolution, malformed patterns, deduplicated safe issues, input-order-independent limits, cancellation during bounded selection, and large-snapshot performance.
+- `internal/cli` tests cover small and monorepo selection, Enterprise rejection before service invocation, real local readiness and topology analysis, text and JSON rendering, output parity contracts, deep non-null collections, status-to-exit mapping, invalid targets, cancellation, malformed analyzer results, privacy, determinism, usage, version output, and writer failures.
 - The verified local commands are `go test ./...`, `go vet ./...`, and `go build ./...`.
 - No CI workflow or external-system integration suite exists yet.
 

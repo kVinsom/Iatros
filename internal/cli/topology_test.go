@@ -50,6 +50,7 @@ func TestTopologyLocalRepositoryJSON(t *testing.T) {
 		t.Fatalf("Summary = %+v", report.Summary)
 	}
 	if report.Projects == nil || report.Workspaces == nil || report.Dependencies == nil ||
+		report.NestedRepositories == nil ||
 		report.Diagnostics == nil || report.Projects[0].Components == nil ||
 		report.Workspaces[0].Declarations == nil {
 		t.Fatal("JSON collections must be arrays, not null")
@@ -145,14 +146,15 @@ func TestTopologyTextContainsCompleteModel(t *testing.T) {
 		t.Fatalf("Run() = exit %d, stderr %q", result.exitCode, result.stderr)
 	}
 	for _, expected := range []string{
-		"IATROS Repository Topology", "Schema version: 0.1",
-		"Report type: repository_topology", "Status: completed",
+		"IATROS Repository Topology", "Schema version: 0.3",
+		"Report type: repository_topology", "Profile: small", "Status: completed",
 		"Target kind: local_directory", "Target: .",
 		"Projects total: 1", "Root: .", "ID: go-module", "Manifest path: go.mod",
 		"Module: example.com/app", "Workspace declared: false", "Name: go", "Value: 1.25",
 		"Workspaces total: 1", "Contained projects:", "Declared projects:",
 		"Declarations:", "Pattern: .", "Workspace declared: true",
-		"Dependencies total: 1", "Name: example.com/lib", "Resolution: unresolved",
+		"Dependencies total: 1", "Nested repositories skipped: 0",
+		"Name: example.com/lib", "Resolution: unresolved",
 		"Targets truncated: false",
 	} {
 		if !strings.Contains(result.stdout, expected) {

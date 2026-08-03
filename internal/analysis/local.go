@@ -28,20 +28,34 @@ type LocalAnalyzer struct {
 	discovery inventoryDiscoverer
 	detector  technologyDetector
 	evaluator readinessEvaluator
+	profile   ScalingProfileName
 }
 
 // NewLocalAnalyzer creates the local analyzer with the conservative default profile.
 func NewLocalAnalyzer() (LocalAnalyzer, error) {
-	discovery, err := NewLocalDiscovery(DefaultDiscoveryLimits())
+	return NewLocalAnalyzerWithProfile(SmallScalingProfile())
+}
+
+// NewLocalAnalyzerWithProfile creates a local analyzer with one validated scaling profile.
+func NewLocalAnalyzerWithProfile(profile ScalingProfile) (LocalAnalyzer, error) {
+	if err := profile.Validate(); err != nil {
+		return LocalAnalyzer{}, err
+	}
+	discovery, err := NewLocalDiscovery(profile.Discovery)
 	if err != nil {
 		return LocalAnalyzer{}, err
 	}
-	detector, err := detection.NewMarkerDetector(detection.DefaultLimits())
+	detector, err := detection.NewMarkerDetector(profile.Detection)
 	if err != nil {
 		return LocalAnalyzer{}, err
 	}
 
-	return newLocalAnalyzer(discovery, detector, readiness.Evaluator{}), nil
+	return newLocalAnalyzerWithProfile(
+		discovery,
+		detector,
+		readiness.Evaluator{},
+		profile.Name,
+	), nil
 }
 
 func newLocalAnalyzer(
@@ -49,68 +63,113 @@ func newLocalAnalyzer(
 	detector technologyDetector,
 	evaluator readinessEvaluator,
 ) LocalAnalyzer {
+	return newLocalAnalyzerWithProfile(
+		discovery,
+		detector,
+		evaluator,
+		ScalingProfileSmall,
+	)
+}
+
+func newLocalAnalyzerWithProfile(
+	discovery inventoryDiscoverer,
+	detector technologyDetector,
+	evaluator readinessEvaluator,
+	profile ScalingProfileName,
+) LocalAnalyzer {
 	return LocalAnalyzer{
 		discovery: discovery,
 		detector:  detector,
 		evaluator: evaluator,
+		profile:   profile,
 	}
 }
 
 // Analyze returns a deterministic report built exclusively from local repository metadata.
 func (a LocalAnalyzer) Analyze(ctx context.Context, request Request) (Report, error) {
+	profile := normalizedScalingProfileName(a.profile)
+	requestedProfile := request.Profile
+	if requestedProfile == "" {
+		requestedProfile = profile
+	}
+	if requestedProfile != profile {
+		return failedProfileReport(
+			requestedProfile,
+			DiagnosticCodeScalingProfileUnavailable,
+			"The requested scaling profile is unavailable.",
+		), ErrScalingProfileUnavailable
+	}
 	if err := ctx.Err(); err != nil {
-		return NewCanceledReport(), err
+		return reportWithProfile(NewCanceledReport(), profile), err
 	}
 	if a.discovery == nil || a.detector == nil || a.evaluator == nil {
-		return NewAnalysisFailedReport(), errLocalAnalyzerUnavailable
+		return reportWithProfile(NewAnalysisFailedReport(), profile), errLocalAnalyzerUnavailable
 	}
 
 	inventory, err := a.discovery.Discover(ctx, request.Root)
 	if err != nil {
-		return reportForAnalysisError(ctx, err)
+		return reportForAnalysisError(ctx, profile, err)
 	}
 	if !validDiscoveryIssues(inventory.Issues) {
-		return NewAnalysisFailedReport(), ErrInvalidReport
+		return reportWithProfile(NewAnalysisFailedReport(), profile), ErrInvalidReport
 	}
 	if err := ctx.Err(); err != nil {
-		return NewCanceledReport(), err
+		return reportWithProfile(NewCanceledReport(), profile), err
 	}
 
 	technologies, err := a.detector.Detect(ctx, inventory.Files)
 	if err != nil {
-		return reportForAnalysisError(ctx, err)
+		return reportForAnalysisError(ctx, profile, err)
 	}
 	if err := ctx.Err(); err != nil {
-		return NewCanceledReport(), err
+		return reportWithProfile(NewCanceledReport(), profile), err
 	}
 
 	findings, err := a.evaluator.Evaluate(ctx, readinessSnapshot(inventory, technologies))
 	if err != nil {
-		return reportForAnalysisError(ctx, err)
+		return reportForAnalysisError(ctx, profile, err)
 	}
 	if err := ctx.Err(); err != nil {
-		return NewCanceledReport(), err
+		return reportWithProfile(NewCanceledReport(), profile), err
 	}
 
 	report := completedLocalReport(inventory, technologies, findings)
+	report.Profile = profile
 	if err := report.Validate(); err != nil {
-		return NewAnalysisFailedReport(), err
+		return reportWithProfile(NewAnalysisFailedReport(), profile), err
 	}
 	return report, nil
 }
 
-func reportForAnalysisError(ctx context.Context, err error) (Report, error) {
+func reportForAnalysisError(
+	ctx context.Context,
+	profile ScalingProfileName,
+	err error,
+) (Report, error) {
 	if contextErr := ctx.Err(); contextErr != nil {
-		return NewCanceledReport(), contextErr
+		return reportWithProfile(NewCanceledReport(), profile), contextErr
 	}
 	switch {
 	case errors.Is(err, ErrInvalidTarget):
-		return NewInvalidTargetReport(), ErrInvalidTarget
+		return reportWithProfile(NewInvalidTargetReport(), profile), ErrInvalidTarget
 	case errors.Is(err, context.Canceled):
-		return NewCanceledReport(), err
+		return reportWithProfile(NewCanceledReport(), profile), err
 	default:
-		return NewAnalysisFailedReport(), err
+		return reportWithProfile(NewAnalysisFailedReport(), profile), err
 	}
+}
+
+func reportWithProfile(report Report, profile ScalingProfileName) Report {
+	report.Profile = normalizedScalingProfileName(profile)
+	return report
+}
+
+func failedProfileReport(profile ScalingProfileName, code, message string) Report {
+	return reportWithProfile(NewFailedReport(Diagnostic{
+		Code:    code,
+		Level:   "error",
+		Message: message,
+	}), profile)
 }
 
 func readinessSnapshot(
@@ -146,6 +205,7 @@ func completedLocalReport(
 	report := newReport(status)
 	report.Summary.DirectoriesScanned = len(inventory.Directories)
 	report.Summary.FilesScanned = len(inventory.Files)
+	report.Summary.NestedRepositoriesSkipped = len(inventory.NestedRepositories)
 	report.Ecosystems = reportEcosystems(technologies)
 	report.Findings = reportFindings(readinessFindings)
 	report.Diagnostics = reportDiagnostics(inventory.Issues)

@@ -1,12 +1,13 @@
 # Repository Topology Architecture
 
 > [!IMPORTANT]
-> **Status: implemented and exposed through a versioned CLI contract.** `internal/topology` associates the project-boundary and manifest models, `internal/analysis.LocalTopologyAnalyzer` runs the complete local read-only pipeline, and `iatros topology` renders the validated model as deterministic text or JSON. The established `iatros analyze` schema remains unchanged.
+> **Status: implemented and exposed through a versioned CLI contract.** `internal/topology` associates the project-boundary and manifest models, profile-aware local analyzers run the complete ignore-aware read-only pipeline, and `iatros topology` renders the validated model as deterministic schema `0.3` text or JSON.
 
 See also:
 
 - [Project and workspace boundary model](project-model.md)
 - [Manifest analysis architecture](manifest-analysis.md)
+- [Repository discovery architecture](repository-discovery.md)
 - [Security architecture](security.md)
 - [Testing strategy](testing.md)
 - [PS-0001: Local Repository Analysis](../product/0001-local-repository-analysis.md)
@@ -27,10 +28,11 @@ project boundaries  bounded manifest facts
               v
 projects + components + workspaces
 + declarations + direct dependency edges
++ nested repository boundaries
 + partial diagnostics
 ```
 
-The builder performs no filesystem or network access. It consumes only normalized outputs from `internal/project` and `internal/manifest`. The separate local orchestrator owns confined file access and supplies both results.
+The builder performs no filesystem or network access. It consumes only normalized outputs from `internal/project` and `internal/manifest` plus bounded nested-repository paths from discovery. The separate local orchestrator owns confined file access and supplies all inputs.
 
 Topology is observed or conservatively inferred repository structure, not proof that a project builds, a dependency resolves at install time, a workspace tool accepts the configuration, or a component is deployed.
 
@@ -43,6 +45,7 @@ The model contains:
 - `Workspace`: a detected or manifest-derived coordination root;
 - `WorkspaceDeclaration`: one safe member declaration, its resolution state, and matched project roots;
 - `Dependency`: one direct declaration and any repository-local target projects;
+- `NestedRepositories`: sorted submodule and embedded Git-worktree roots excluded from parent analysis;
 - `Issue`: a bounded omission, unsafe declaration, or ambiguous relationship;
 - `Partial`: an explicit signal that consumers must not treat the model as complete.
 
@@ -125,7 +128,7 @@ Dependency resolutions are:
 
 The topology is partial when either upstream result is partial or when association omits or cannot safely resolve data. Diagnostic families cover:
 
-- project, workspace, manifest, component, declaration, member-match, dependency, target, and issue limits;
+- project, workspace, manifest, component, declaration, member-match, dependency, target, nested-repository, and issue limits;
 - unassigned manifests;
 - unsupported, outside-root, and unmatched workspace declarations;
 - ambiguous local dependency identities;
@@ -137,9 +140,9 @@ Inherited and generated issues are validated before exposure. Identical issues a
 
 ## 8. Resource profiles
 
-Limits are validated injectable profiles, not permanent product ceilings:
+Limits are supplied by the active [unified scaling profile](scaling-profiles.md), not permanent product ceilings:
 
-| Limit | Conservative default | Large-repository profile |
+| Limit | `small` | `monorepo` |
 | --- | ---: | ---: |
 | Projects | 2,000 | 100,000 |
 | Workspaces | 500 | 10,000 |
@@ -149,13 +152,14 @@ Limits are validated injectable profiles, not permanent product ceilings:
 | Matches per declaration | 500 | 10,000 |
 | Direct dependencies | 20,000 | 1,000,000 |
 | Targets per ambiguous dependency | 20 | 100 |
+| Nested repository boundaries | 100 | 5,000 |
 | Structured issues | 100 | 1,000 |
 | Bytes per retained value | 4 KiB | 64 KiB |
 | Association duration | 3 seconds | 60 seconds |
 
-The conservative profile aligns with current discovery and manifest defaults. Large-profile values are starting points for explicit opt-in deployments and require representative release measurements before becoming an Enterprise default.
+The `small` profile aligns with conservative discovery and manifest defaults. `monorepo` is an explicit CLI opt-in. The Enterprise per-worker profile increases the same validated limits and is available only to an Enterprise-aware composition; its complete values are defined in the scaling profile contract.
 
-The builder selects the lexicographically first bounded projects, workspaces, manifests, and inherited issues independently of caller order. Selection uses bounded top-N storage rather than cloning an over-limit input. It then indexes component identities once, finds nearest workspaces by ancestor traversal, and resolves declarations only against retained project roots. Context is checked during selection and validation, between association stages, while matching members, and while indexing dependencies. The local benchmark covering 2,000 projects and one globstar declaration exists to detect regressions; it is not a release service-level objective.
+The builder selects the lexicographically first bounded projects, workspaces, manifests, nested repository boundaries, and inherited issues independently of caller order. Selection uses bounded top-N storage rather than cloning an over-limit input. It then validates that no retained project or workspace belongs to a nested repository, indexes component identities once, finds nearest workspaces by ancestor traversal, and resolves declarations only against retained project roots. Context is checked during selection and validation, between association stages, while matching members, and while indexing dependencies. The local benchmark covering 2,000 projects and one globstar declaration exists to detect regressions; it is not a release service-level objective.
 
 ## 9. Security properties
 
@@ -185,17 +189,18 @@ The builder and its parser inputs remain trusted in-process code. A future untru
 The topology workflow is deliberately separate from readiness analysis:
 
 ```text
-iatros topology [path] [--format text|json]
+iatros topology [path] [--format text|json] [--profile small|monorepo]
 ```
 
-`path` defaults to `.` and accepts one existing local directory. Text is the default format. The command uses the conservative discovery, manifest, and topology profiles. User-selectable and release-calibrated Enterprise profiles remain deferred until a configuration contract is approved.
+`path` defaults to `.` and accepts one existing local directory. Text is the default format. `small` is the default profile, while `monorepo` is explicit. The default CLI rejects `enterprise` before analysis; an Enterprise composition must enable that profile separately.
 
-The JSON envelope has schema version `0.1` and fixed `report_type: repository_topology`. It does not alter or supersede the separate `iatros analyze` schema `0.1`.
+The JSON envelope has schema version `0.3`, fixed `report_type: repository_topology`, and the active scaling profile. It remains independent from the separate `iatros analyze` schema `0.3`.
 
 ```json
 {
-  "schema_version": "0.1",
+  "schema_version": "0.3",
   "report_type": "repository_topology",
+  "profile": "small",
   "status": "completed",
   "target": {"kind": "local_directory", "path": "."},
   "summary": {
@@ -205,16 +210,18 @@ The JSON envelope has schema version `0.1` and fixed `report_type: repository_to
     "dependencies_total": 0,
     "internal_dependencies": 0,
     "unresolved_dependencies": 0,
-    "ambiguous_dependencies": 0
+    "ambiguous_dependencies": 0,
+    "nested_repositories_skipped": 0
   },
   "projects": [],
   "workspaces": [],
   "dependencies": [],
+  "nested_repositories": [],
   "diagnostics": []
 }
 ```
 
-Every shown field is always present. Every top-level and nested collection encodes as an array, including empty collections. `components_total` counts unique format-and-manifest-path pairs, so a manifest represented at both a project and workspace boundary is counted once. Dependency resolution counts sum to `dependencies_total`.
+Every shown field is always present. Every top-level and nested collection encodes as an array, including empty collections. `components_total` counts unique format-and-manifest-path pairs, so a manifest represented at both a project and workspace boundary is counted once. Dependency resolution counts sum to `dependencies_total`. `nested_repositories_skipped` equals the number of safe paths in `nested_repositories`.
 
 ### 10.1 Public project fields
 
@@ -234,7 +241,11 @@ Each workspace exposes its root, markers, components, contained, declared, and e
 
 Each direct dependency exposes the source project and manifest, ecosystem, declared name and constraint, normalized scope, indirect and optional flags, resolution, bounded candidate target projects, and truncation state. The report does not claim transitive resolution, registry availability, installed versions, or build success.
 
-### 10.4 Status, diagnostics, and exits
+### 10.4 Nested repository fields
+
+`nested_repositories` contains sorted, unique, root-relative submodule or embedded Git-worktree roots deliberately excluded from the selected parent repository. A nested root cannot contain another reported nested root, project, or workspace. The report never exposes submodule remotes, absolute Git metadata paths, or content from the nested repository.
+
+### 10.5 Status, diagnostics, and exits
 
 - `completed` means every retained stage completed within its configured limits;
 - `partial` means the included facts are trustworthy but incomplete, and at least one warning diagnostic explains the limitation;
@@ -244,6 +255,6 @@ Topology issues become bounded warning diagnostics. Root-relative issue paths pr
 
 Exit code `0` represents `completed` and `partial`, `1` represents operational or internal failure, `2` represents invalid usage, and `3` represents an invalid target. A partial report is successful because its incompleteness is explicit and machine-readable.
 
-### 10.5 Rendering and validation
+### 10.6 Rendering and validation
 
 Text and JSON render the same validated report rather than running separate analysis paths. Output contains no timestamp, uses deterministic ordering, and exposes only slash-separated repository-relative paths with `.` as the selected root. Before rendering, the adapter verifies envelope identity, counts, statuses, diagnostic structure, ordering, all path fields, workspace and dependency resolution invariants, and the absence of contradictory failed-result data. Unsafe or malformed internal output is replaced with a canonical failed report.

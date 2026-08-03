@@ -29,6 +29,7 @@ func TestFindingsFitAnalysisReportContract(t *testing.T) {
 	}
 	report := analysis.Report{
 		SchemaVersion: analysis.SchemaVersion,
+		Profile:       analysis.ScalingProfileSmall,
 		Status:        analysis.StatusCompleted,
 		Target: analysis.Target{
 			Kind: analysis.TargetKindLocalDirectory,

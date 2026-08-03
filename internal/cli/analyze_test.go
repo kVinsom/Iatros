@@ -15,6 +15,7 @@ import (
 
 const expectedStubText = "IATROS Local Repository Analysis\n" +
 	"Status: not implemented\n" +
+	"Profile: small\n" +
 	"Target: .\n\n" +
 	"No analysis was performed.\n"
 
@@ -197,10 +198,12 @@ func TestAnalyzeRendersCompleteTextReport(t *testing.T) {
 
 	const want = "IATROS Local Repository Analysis\n" +
 		"Status: completed\n" +
+		"Profile: small\n" +
 		"Target: .\n\n" +
 		"Summary:\n" +
 		"- Directories scanned: 2\n" +
 		"- Files scanned: 3\n" +
+		"- Nested repositories skipped: 0\n" +
 		"- Ecosystems detected: 1\n" +
 		"- Findings total: 1\n\n" +
 		"Technologies:\n" +
@@ -507,6 +510,7 @@ func TestAnalyzeDetectsReportOutputFailure(t *testing.T) {
 func completedReport() analysis.Report {
 	return analysis.Report{
 		SchemaVersion: analysis.SchemaVersion,
+		Profile:       analysis.ScalingProfileSmall,
 		Status:        analysis.StatusCompleted,
 		Target: analysis.Target{
 			Kind: analysis.TargetKindLocalDirectory,
@@ -541,6 +545,7 @@ func completedReport() analysis.Report {
 func emptyReport(status analysis.Status) analysis.Report {
 	return analysis.Report{
 		SchemaVersion: analysis.SchemaVersion,
+		Profile:       analysis.ScalingProfileSmall,
 		Status:        status,
 		Target: analysis.Target{
 			Kind: analysis.TargetKindLocalDirectory,

@@ -76,6 +76,39 @@ func TestLocalAnalyzerBuildsCompleteReport(t *testing.T) {
 	}
 }
 
+func TestLocalAnalyzerReportsAndIsolatesNestedRepository(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeAnalysisTestFile(t, root, "README.md")
+	writeAnalysisTestFile(t, root, "LICENSE")
+	writeAnalysisTestFile(t, root, ".gitignore")
+	writeAnalysisTestFile(t, root, "go.mod")
+	writeAnalysisTestFile(t, root, "vendor/library/Cargo.toml")
+	gitmodules := "[submodule \"library\"]\npath = vendor/library\n"
+	if err := os.WriteFile(filepath.Join(root, ".gitmodules"), []byte(gitmodules), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	analyzer, err := NewLocalAnalyzer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := analyzer.Analyze(t.Context(), Request{Root: root})
+	if err != nil {
+		t.Fatalf("Analyze() error = %v", err)
+	}
+	if report.Status != StatusCompleted || report.Summary.NestedRepositoriesSkipped != 1 ||
+		report.Summary.FilesScanned != 5 {
+		t.Fatalf("report = %#v, want one skipped nested repository", report)
+	}
+	for _, ecosystem := range report.Ecosystems {
+		if ecosystem.ID == "rust" || ecosystem.ID == "cargo" {
+			t.Fatalf("nested repository leaked into ecosystems: %#v", report.Ecosystems)
+		}
+	}
+}
+
 func TestLocalAnalyzerMapsPartialDiscovery(t *testing.T) {
 	t.Parallel()
 
