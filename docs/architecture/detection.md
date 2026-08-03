@@ -1,7 +1,7 @@
 # Technology Detection Architecture
 
 > [!IMPORTANT]
-> **Status: implemented internally; analysis-report and CLI integration are deferred.** The current detector consumes only the bounded, root-relative file inventory. It does not read file content, execute detected tools, install dependencies, or use the network.
+> **Status: implemented and integrated into local CLI analysis.** The detector consumes only the bounded, root-relative file inventory. It does not read file content, execute detected tools, install dependencies, or use the network.
 
 See also:
 
@@ -24,10 +24,10 @@ internal/detection.MarkerDetector
 sorted private Technology records
         |
         v
-future analysis-report adapter
+internal analysis-report adapter
 ```
 
-The private result records a stable technology ID, its primary category, sorted root-relative evidence paths, and whether the evidence list was truncated. The existing public report contract is unchanged in this increment.
+The private result records a stable technology ID, its primary category, sorted root-relative evidence paths, and whether the evidence list was truncated. The analysis orchestrator maps those values into the versioned report fields `id`, `category`, `evidence`, and `evidence_truncated` without exposing detector types to the CLI.
 
 ## 2. Detection behavior
 
@@ -35,6 +35,7 @@ The built-in detector:
 
 - validates every input as a safe root-relative slash-separated path;
 - sorts and deduplicates input paths before matching;
+- ignores evidence inside the shared VCS, generated dependency, virtual-environment, and tool-state directory policy;
 - matches filename patterns against every path suffix so nested projects are supported;
 - performs case-sensitive matching for consistent behavior across operating systems;
 - returns technologies sorted by stable ID;

@@ -1,177 +1,184 @@
-// Package project owns the provider-neutral representation of a project and its operational topology.
+// Package project identifies provider-neutral project and workspace boundaries.
 package project
 
 import (
+	"context"
+	"errors"
+	"path"
 	"slices"
 	"strings"
-
-	"github.com/kVinsom/Iatros/internal/schema"
+	"unicode/utf8"
 )
-
-// CurrentSchemaVersion identifies the project-model schema understood by this implementation.
-const CurrentSchemaVersion schema.Version = "1.0"
-
-// ProjectID identifies a project independently from its display name or filesystem location.
-type ProjectID string
-
-// EnvironmentID identifies an environment within a project.
-type EnvironmentID string
-
-// ServiceID identifies a service within a project.
-type ServiceID string
-
-// DependencyID identifies a dependency edge within a project.
-type DependencyID string
-
-// ResourceKind identifies the type of resource referenced by a dependency.
-type ResourceKind string
 
 const (
-	// ResourceKindProject identifies the containing project.
-	ResourceKindProject ResourceKind = "project"
-	// ResourceKindEnvironment identifies an environment declared by the project.
-	ResourceKindEnvironment ResourceKind = "environment"
-	// ResourceKindService identifies a service declared by the project.
-	ResourceKindService ResourceKind = "service"
-	// ResourceKindExternal identifies a resource owned outside the project model.
-	ResourceKindExternal ResourceKind = "external"
+	// KindCode identifies a boundary established by a code or package manifest.
+	KindCode Kind = "code"
+	// KindInfrastructure identifies a boundary established by an infrastructure manifest.
+	KindInfrastructure Kind = "infrastructure"
+	// KindMixed identifies a boundary containing both code and infrastructure manifests.
+	KindMixed Kind = "mixed"
 )
 
-// ConfigurationSource identifies how a configuration entry obtains its value.
-type ConfigurationSource string
-
-const (
-	// ConfigurationSourceLiteral stores a non-sensitive literal value in the model.
-	ConfigurationSourceLiteral ConfigurationSource = "literal"
-	// ConfigurationSourceEnvironment reads a value from a named environment variable.
-	ConfigurationSourceEnvironment ConfigurationSource = "environment"
-	// ConfigurationSourceFile reads a value from a project-relative file.
-	ConfigurationSourceFile ConfigurationSource = "file"
-	// ConfigurationSourceSecret resolves a sensitive value through a secret reference.
-	ConfigurationSourceSecret ConfigurationSource = "secret"
+var (
+	// ErrInvalidLimits indicates unusable project-boundary limits.
+	ErrInvalidLimits = errors.New("project detection limits are invalid")
+	// ErrInvalidSnapshot indicates unsafe or malformed project-boundary input.
+	ErrInvalidSnapshot = errors.New("project detection snapshot is invalid")
 )
 
-// Project is the canonical provider-neutral representation of one operational project.
+// Kind describes the direct marker classes found at a project root.
+type Kind string
+
+// Limits bound evidence retained by project-boundary detection.
+type Limits struct {
+	MaxEvidencePerMarker int
+}
+
+// DefaultLimits returns the conservative baseline project-detection profile.
+func DefaultLimits() Limits {
+	return Limits{MaxEvidencePerMarker: 20}
+}
+
+// Validate checks that project-boundary work has a usable evidence bound.
+func (l Limits) Validate() error {
+	if l.MaxEvidencePerMarker <= 0 {
+		return ErrInvalidLimits
+	}
+	return nil
+}
+
+// Snapshot contains the bounded file evidence used to identify boundaries.
+type Snapshot struct {
+	Files   []string
+	Partial bool
+}
+
+// Marker records one boundary signal and its direct file evidence.
+type Marker struct {
+	ID                string
+	Evidence          []string
+	EvidenceTruncated bool
+}
+
+// Project identifies one code, infrastructure, or mixed project root.
 type Project struct {
-	SchemaVersion schema.Version `json:"schema_version"`
-	ID            ProjectID      `json:"id"`
-	Name          string         `json:"name"`
-	Configuration Configuration  `json:"configuration"`
-	Environments  []Environment  `json:"environments"`
-	Services      []Service      `json:"services"`
-	Dependencies  []Dependency   `json:"dependencies"`
+	Root          string
+	Kind          Kind
+	WorkspaceRoot string
+	Markers       []Marker
 }
 
-// Environment describes a deployment or operational context within a project.
-type Environment struct {
-	ID            EnvironmentID `json:"id"`
-	Name          string        `json:"name"`
-	Kind          string        `json:"kind"`
-	Configuration Configuration `json:"configuration"`
+// Workspace identifies a repository location that coordinates nested projects.
+type Workspace struct {
+	Root    string
+	Markers []Marker
 }
 
-// Service describes a provider-neutral deployable or externally operated capability.
-type Service struct {
-	ID            ServiceID            `json:"id"`
-	Name          string               `json:"name"`
-	Kind          string               `json:"kind"`
-	SourcePath    string               `json:"source_path,omitempty"`
-	Configuration Configuration        `json:"configuration"`
-	Environments  []ServiceEnvironment `json:"environments"`
+// Model contains deterministic project and workspace boundaries.
+type Model struct {
+	Projects   []Project
+	Workspaces []Workspace
+	Partial    bool
 }
 
-// ServiceEnvironment binds a service to an environment and records environment-specific overrides.
-type ServiceEnvironment struct {
-	EnvironmentID EnvironmentID `json:"environment_id"`
-	Configuration Configuration `json:"configuration"`
+// Detector identifies project and workspace roots from strong filename markers.
+type Detector struct {
+	limits Limits
 }
 
-// Dependency describes a directed relationship between two project or external resources.
-type Dependency struct {
-	ID           DependencyID      `json:"id"`
-	Source       ResourceReference `json:"source"`
-	Target       ResourceReference `json:"target"`
-	Kind         string            `json:"kind"`
-	Required     bool              `json:"required"`
-	Environments []EnvironmentID   `json:"environments"`
-}
-
-// ResourceReference identifies one endpoint of a dependency without importing a provider type.
-type ResourceReference struct {
-	Kind ResourceKind `json:"kind"`
-	ID   string       `json:"id"`
-}
-
-// Configuration contains deterministic, key-ordered configuration declarations.
-type Configuration struct {
-	Entries []ConfigurationEntry `json:"entries"`
-}
-
-// ConfigurationEntry declares a literal value or a reference to a runtime value source.
-type ConfigurationEntry struct {
-	Key       string              `json:"key"`
-	Source    ConfigurationSource `json:"source"`
-	Value     string              `json:"value,omitempty"`
-	Reference string              `json:"reference,omitempty"`
-	Required  bool                `json:"required"`
-	Sensitive bool                `json:"sensitive"`
-}
-
-// Normalized returns a detached project value with deterministic collection ordering and non-nil slices.
-func (p Project) Normalized() Project {
-	p.Configuration = p.Configuration.Normalized()
-	p.Environments = normalizedSlice(p.Environments)
-	for index := range p.Environments {
-		p.Environments[index].Configuration = p.Environments[index].Configuration.Normalized()
+// NewDetector creates a project-boundary detector with validated limits.
+func NewDetector(limits Limits) (Detector, error) {
+	if err := limits.Validate(); err != nil {
+		return Detector{}, err
 	}
-	slices.SortFunc(p.Environments, func(left, right Environment) int {
-		return strings.Compare(string(left.ID), string(right.ID))
-	})
+	return Detector{limits: limits}, nil
+}
 
-	p.Services = normalizedSlice(p.Services)
-	for serviceIndex := range p.Services {
-		service := &p.Services[serviceIndex]
-		service.Configuration = service.Configuration.Normalized()
-		service.Environments = normalizedSlice(service.Environments)
-		for environmentIndex := range service.Environments {
-			binding := &service.Environments[environmentIndex]
-			binding.Configuration = binding.Configuration.Normalized()
+// Detect returns boundaries without reading file contents or mutating the snapshot.
+func (d Detector) Detect(ctx context.Context, snapshot Snapshot) (Model, error) {
+	empty := emptyModel(snapshot.Partial)
+	if err := d.limits.Validate(); err != nil {
+		return empty, err
+	}
+	if err := ctx.Err(); err != nil {
+		return empty, err
+	}
+	for _, file := range snapshot.Files {
+		if err := ctx.Err(); err != nil {
+			return empty, err
 		}
-		slices.SortFunc(service.Environments, func(left, right ServiceEnvironment) int {
-			return strings.Compare(string(left.EnvironmentID), string(right.EnvironmentID))
-		})
+		if !validRepositoryFile(file) {
+			return empty, ErrInvalidSnapshot
+		}
 	}
-	slices.SortFunc(p.Services, func(left, right Service) int {
-		return strings.Compare(string(left.ID), string(right.ID))
-	})
 
-	p.Dependencies = normalizedSlice(p.Dependencies)
-	for index := range p.Dependencies {
-		p.Dependencies[index].Environments = normalizedSlice(p.Dependencies[index].Environments)
-		slices.Sort(p.Dependencies[index].Environments)
+	files := slices.Clone(snapshot.Files)
+	slices.Sort(files)
+	files = slices.Compact(files)
+
+	projects := make(map[string]*projectBuilder)
+	workspaces := make(map[string]*boundaryBuilder)
+	for _, file := range files {
+		if err := ctx.Err(); err != nil {
+			return empty, err
+		}
+		if ignoredBoundaryEvidence(file) {
+			continue
+		}
+
+		root := path.Dir(file)
+		for _, rule := range projectMarkerRules {
+			if rule.matches(file) {
+				addProjectMarker(projects, root, rule, file, d.limits.MaxEvidencePerMarker)
+			}
+		}
+		for _, rule := range workspaceMarkerRules {
+			if rule.matches(file) {
+				addBoundaryMarker(workspaces, root, rule.id, file, d.limits.MaxEvidencePerMarker)
+			}
+		}
 	}
-	slices.SortFunc(p.Dependencies, func(left, right Dependency) int {
-		return strings.Compare(string(left.ID), string(right.ID))
-	})
 
-	return p
+	model, err := buildModel(ctx, projects, workspaces, snapshot.Partial)
+	if err != nil {
+		return empty, err
+	}
+	return model, nil
 }
 
-// Normalized returns a detached configuration with deterministic ordering and a non-nil entry slice.
-func (c Configuration) Normalized() Configuration {
-	c.Entries = normalizedSlice(c.Entries)
-	slices.SortFunc(c.Entries, func(left, right ConfigurationEntry) int {
-		return strings.Compare(left.Key, right.Key)
-	})
-
-	return c
+func emptyModel(partial bool) Model {
+	return Model{
+		Projects:   make([]Project, 0),
+		Workspaces: make([]Workspace, 0),
+		Partial:    partial,
+	}
 }
 
-func normalizedSlice[S ~[]E, E any](values S) S {
-	result := slices.Clone(values)
-	if result == nil {
-		return make(S, 0)
+func validRepositoryFile(value string) bool {
+	if !validText(value) || strings.Contains(value, "\\") || path.IsAbs(value) ||
+		looksLikeWindowsPath(value) {
+		return false
 	}
 
-	return result
+	cleaned := path.Clean(value)
+	return cleaned == value && cleaned != "." && cleaned != ".." &&
+		!strings.HasPrefix(cleaned, "../")
+}
+
+func validText(value string) bool {
+	if value == "" || !utf8.ValidString(value) || strings.TrimSpace(value) != value {
+		return false
+	}
+	for _, character := range value {
+		if character < 0x20 || (character >= 0x7f && character <= 0x9f) {
+			return false
+		}
+	}
+	return true
+}
+
+func looksLikeWindowsPath(value string) bool {
+	return len(value) >= 2 &&
+		((value[0] >= 'A' && value[0] <= 'Z') || (value[0] >= 'a' && value[0] <= 'z')) &&
+		value[1] == ':'
 }

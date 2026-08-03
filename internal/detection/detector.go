@@ -8,7 +8,11 @@ import (
 	"slices"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/kVinsom/Iatros/internal/repositorypath"
 )
+
+const initialEvidenceCapacity = 4
 
 const (
 	// CategoryLanguage identifies a programming language.
@@ -116,6 +120,9 @@ func (d MarkerDetector) Detect(ctx context.Context, files []string) ([]Technolog
 		if err := ctx.Err(); err != nil {
 			return make([]Technology, 0), err
 		}
+		if repositorypath.IsExcludedFile(file) {
+			continue
+		}
 		for _, rule := range d.rules {
 			if !rule.matches(file) {
 				continue
@@ -126,7 +133,10 @@ func (d MarkerDetector) Detect(ctx context.Context, files []string) ([]Technolog
 				technology = &Technology{
 					ID:       rule.id,
 					Category: rule.category,
-					Evidence: make([]string, 0, d.limits.MaxEvidencePerTechnology),
+					Evidence: make([]string, 0, min(
+						d.limits.MaxEvidencePerTechnology,
+						initialEvidenceCapacity,
+					)),
 				}
 				detected[rule.id] = technology
 			}

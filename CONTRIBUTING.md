@@ -49,8 +49,12 @@ Comment rules:
 - Keep provider-neutral domain and application behavior out of Cobra commands and provider plugins.
 - Keep Cobra confined to the CLI adapter.
 - Add Viper only after an approved configuration contract exists, and isolate it behind a configuration adapter.
-- Preserve the Basic, Pro, and Enterprise capability boundaries and keep paid-entitlement logic outside provider-neutral domains.
-- Keep free Basic buildable and usable without AI, paid extensions, or a billing provider.
+- Keep resource limits injectable and validated so the same core can support conservative local defaults and larger company-scale profiles.
+- Apply limits with deterministic selection, check cancellation between stages and periodically inside large bounded loops, and avoid allocating directly from an untrusted configurable maximum.
+- Place parser or processing implementations behind consumer-owned interfaces when file size, throughput, or format requirements may require a specialized or third-party backend.
+- Clone mutable slices and maps received across replaceable boundaries before sorting, normalizing, redacting, or truncating them unless the contract explicitly transfers ownership.
+- Add a third-party backend only with evidence for the requirement, license and maintenance review, relevant benchmarks, and conformance tests against the provider-neutral contract.
+- Extract shared helpers when behavior and invariants are genuinely identical; keep coincidentally similar domain rules in their owning packages.
 - Record consequential or difficult-to-reverse choices in an architecture decision record.
 
 ## Tests and documentation

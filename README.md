@@ -15,7 +15,7 @@
 </p>
 
 > [!IMPORTANT]
-> **Project status:** Early implementation. The MVP uses the free local Basic plan without AI; its current approved user-facing slice is read-only repository analysis. The repository contains a runnable Cobra-based CLI contract stub plus stable private core contracts for project topology, configuration, schema compatibility, and lifecycle results. All broader analysis and deterministic architecture-generation capabilities remain planned until source and tests prove them.
+> **Project status:** Early implementation. The repository contains two runnable local, read-only workflows. `iatros analyze` performs bounded metadata discovery, technology detection, and five conservative readiness checks. `iatros topology` safely parses allowlisted manifests and reports projects, components, workspaces, and direct dependency relationships. Both commands return deterministic text or JSON. Broader AI, remote-provider, generation, and operational capabilities remain planned, not released.
 
 ## Overview
 
@@ -34,17 +34,15 @@ The proposed architecture separates provider-neutral domain logic from vendor-sp
 - **Operational insight:** bring together observability, reliability, security, and cost-awareness workflows.
 - **Extensible integrations:** create open plugins in every plan and closed private plugins in Enterprise through stable contracts.
 
-These items describe the intended product direction. Only the initial CLI contract stub is currently user-facing; the [stable core domain contracts](docs/product/0002-core-domain-contracts.md) are implemented internally for later workflows.
+These items describe the intended product direction. Only the local repository analysis and topology slice described below is currently runnable.
 
-The [IATROS Product Contract](docs/product/product-contract.md) defines the final product boundary, the Analyze → Plan → Generate → Validate → Deploy → Monitor → Fix lifecycle, and the Basic, Pro, and Enterprise plans. Basic is free, local, and AI-free; Pro adds cloud AI; Enterprise adds cloud or local AI plus closed plugins. It separates long-term commitments from currently released behavior.
-
-The first approved implementation slice is [local repository analysis](docs/product/0001-local-repository-analysis.md): a local-only, read-only `iatros analyze` command with deterministic text and JSON contracts.
+The first approved implementation slice is [local repository analysis](docs/product/0001-local-repository-analysis.md): local-only, read-only `iatros analyze` and `iatros topology` commands with deterministic text and JSON contracts.
 
 ## Architecture and repository layout
 
 The scaffold is organized around explicit product and dependency boundaries.
 
-The complete architecture package is available in [`docs/`](docs/README.md), including the [target architecture](docs/architecture/README.md), [security architecture](docs/architecture/security.md), [testing strategy](docs/architecture/testing.md), and [architecture decision records](docs/architecture/decisions/README.md).
+The complete architecture package is available in [`docs/`](docs/README.md), including the [target architecture](docs/architecture/README.md), [project and workspace boundary model](docs/architecture/project-model.md), [security architecture](docs/architecture/security.md), [testing strategy](docs/architecture/testing.md), and [architecture decision records](docs/architecture/decisions/README.md).
 
 | Path | Intended responsibility |
 | --- | --- |
@@ -76,13 +74,15 @@ The intended dependency rules are:
 | --- | --- |
 | Directory scaffold | Present |
 | Project identity, logo, and license | Present |
-| First product specification | Approved; contract stub implemented, analysis in progress |
-| Stable core domain contracts | Private project and workflow schema `1.0` implemented and tested |
+| First product specification | Approved; initial local analysis implemented |
 | Target architecture, security, and testing documentation | Present |
 | Application source and Go module | Root module and initial CLI source present |
-| Runnable CLI, services, and applications | CLI contract stub available; other runtimes not implemented |
+| Runnable CLI, services, and applications | Local analysis and repository-topology CLI available; other runtimes not implemented |
+| Internal project model | Strong filename-based project and workspace boundaries implemented and exposed through topology reports |
+| Internal manifest model | Seven bounded manifest formats, normalized direct declarations, two resource profiles, and replaceable parser backends implemented; conservative profile exposed through topology reports |
+| Internal topology model | Project/component association, nested and overlapping workspaces, safe member resolution, local dependency edges, and public CLI report mapping implemented |
 | API, SDK, plugins, and extensions | Directory placeholders only |
-| Automated tests and CI workflows | Unit tests present; CI workflows not yet added |
+| Automated tests and CI workflows | Unit and local integration tests present; CI workflows not yet added |
 | Published releases | Not yet available |
 
 ## Getting started
@@ -104,7 +104,7 @@ go run ./cmd/iatros help
 go run ./cmd/iatros version
 ```
 
-Build and run the placeholder on Linux or macOS:
+Build and run the analyzer on Linux or macOS:
 
 ```bash
 go build -o ./bin/iatros ./cmd/iatros
@@ -118,7 +118,123 @@ go build -o .\bin\iatros.exe .\cmd\iatros
 .\bin\iatros.exe analyze --format json .
 ```
 
-Until internal discovery and marker detection are connected to the CLI analyzer, `analyze` returns the documented JSON or text placeholder and exits with code `4`. The runnable command validates the selected directory but does not invoke those internal capabilities, read repository contents, access the network, or modify files.
+`path` defaults to the current directory and must identify an existing local directory. Text is the default format:
+
+```bash
+./bin/iatros analyze /path/to/repository
+./bin/iatros analyze --format text /path/to/repository
+./bin/iatros analyze --format json /path/to/repository
+./bin/iatros topology /path/to/repository
+./bin/iatros topology --format text /path/to/repository
+./bin/iatros topology --format json /path/to/repository
+```
+
+Both commands return exit code `0` for complete and explicitly partial reports. Readiness findings do not fail `analyze`. Invalid usage returns `2`, an invalid or inaccessible target returns `3`, and an operational or internal failure returns `1`. Exit code `4` remains reserved for an `analyze` implementation that explicitly reports `not_implemented`; the default CLI does not use that placeholder.
+
+## Local analysis behavior
+
+The first runnable workflow is deliberately narrow and deterministic:
+
+```text
+local directory
+      |
+      v
+bounded metadata discovery
+      |
+      v
+filename-based technology detection
+      |
+      v
+conservative readiness evaluation
+      |
+      v
+versioned report -> text or JSON
+```
+
+The analyzer:
+
+- walks one local root using directory entries and file metadata only;
+- retains at most 2,000 files and 500 directories, traverses at most 20 levels, accepts at most 2,500 entries per directory, retains at most 50 discovery issues, and uses a five-second discovery deadline;
+- skips VCS metadata plus common generated dependency and tool-state directories (`.gradle`, `.pnpm`, `.terraform`, `.venv`, `.yarn`, `node_modules`, and `venv`), symbolic links, junction-like irregular entries, and other irregular files;
+- returns sorted slash-separated paths relative to the selected root;
+- matches 124 filename-marker rules across 15 categories, including 18 common backend languages, three runtimes, 23 dependency managers, build systems, containers, orchestration, infrastructure as code, configuration management, CI/CD, GitOps, observability, networking, security, secrets, and cloud tooling;
+- retains at most 20 evidence paths for each detected technology and reports when additional evidence was truncated;
+- checks for a root README, root license, root `.gitignore`, supported test markers for detected code ecosystems, and supported CI/CD configuration;
+- suppresses all absence-based readiness findings when discovery is partial, because skipped paths make absence untrustworthy;
+- maps access failures and reached limits to structured report diagnostics instead of silently presenting an incomplete scan as complete.
+
+The detector reports direct filename evidence only. A marker does not prove that a technology is installed, correctly configured, secure, used in production, or applicable to every project in a monorepository. See the complete [technology catalog](docs/architecture/detection.md) and [readiness rules](docs/architecture/readiness.md).
+
+The [project and workspace boundary model](docs/architecture/project-model.md) recognizes nested code, infrastructure, mixed-project, and workspace roots from the same bounded inventory. The [manifest analysis stage](docs/architecture/manifest-analysis.md) safely parses `go.mod`, `go.work`, `package.json`, `pyproject.toml`, `Cargo.toml`, `composer.json`, and `pom.xml` into normalized direct declarations. Explicit Go, Node.js, and Cargo workspace declarations remain distinguishable from an absent declaration even when they contain no members. The [topology stage](docs/architecture/topology.md) associates both models, resolves repository-confined workspace members, and identifies direct local dependency edges. `iatros topology` exposes those normalized facts through its separate `repository_topology` schema `0.1`; it does not change the established `iatros analyze` schema.
+
+IATROS uses the same provider-neutral core for small projects and large company monorepositories. Manifest limits are injectable rather than fixed product ceilings, with validated conservative and large-repository profiles. Parser backends are replaceable behind central path, byte, cancellation, normalization, redaction, determinism, and diagnostic contracts, so a measured large-file workload can adopt a specialized streaming or third-party implementation without changing domain semantics.
+
+### Report contract
+
+Text and JSON are two renderings of the same report. The current JSON schema is `0.1`; its top-level fields are always present:
+
+```json
+{
+  "schema_version": "0.1",
+  "status": "completed",
+  "target": {
+    "kind": "local_directory",
+    "path": "."
+  },
+  "summary": {
+    "directories_scanned": 3,
+    "files_scanned": 7,
+    "ecosystems_detected": 3,
+    "findings_total": 0
+  },
+  "ecosystems": [
+    {
+      "id": "github-actions",
+      "category": "ci_cd",
+      "evidence": [
+        ".github/workflows/ci.yml"
+      ],
+      "evidence_truncated": false
+    },
+    {
+      "id": "go",
+      "category": "language",
+      "evidence": [
+        "go.mod",
+        "main.go",
+        "main_test.go"
+      ],
+      "evidence_truncated": false
+    },
+    {
+      "id": "go-modules",
+      "category": "dependency_manager",
+      "evidence": [
+        "go.mod"
+      ],
+      "evidence_truncated": false
+    }
+  ],
+  "findings": [],
+  "diagnostics": []
+}
+```
+
+`status` is `completed` when the bounded scan finishes, `partial` when a safe limit or recoverable access problem omits data, and `failed` when no trustworthy result can be produced. `not_implemented` remains part of the stable contract for future analyzer implementations that are unavailable by design. Results contain no timestamp, use deterministic ordering, and expose the target only as `.`.
+
+### Topology report contract
+
+`iatros topology` uses a separate schema `0.1` with `report_type: repository_topology`. Its always-present top-level fields are `schema_version`, `report_type`, `status`, `target`, `summary`, `projects`, `workspaces`, `dependencies`, and `diagnostics`. Nested collections are arrays even when empty. The summary counts included projects, workspaces, unique manifest components, and direct dependencies by `internal`, `unresolved`, or `ambiguous` resolution.
+
+The report includes normalized component identity and constraints, an explicit `workspace_declared` flag for each component, workspace containment and declarations, and direct dependency edges. An explicitly empty workspace therefore remains visible without inventing a member. The report does not include raw manifest content, transitive dependency resolution, installed-package state, or proof that a build succeeds. Text and JSON describe the same model. Both omit timestamps and absolute paths and use deterministic, root-relative ordering.
+
+See the complete [repository topology contract](docs/architecture/topology.md#10-public-cli-contract) for field meanings, resolution states, limits, and partial-result behavior.
+
+### Current safety boundary
+
+`iatros analyze` remains metadata-only and does not open regular files. `iatros topology` may open only exact registered manifest filenames through a confined root and independent byte limits. Neither command executes repository code or detected tools, installs dependencies, contacts providers, performs DNS or network requests, or modifies the target. Both reject unsafe targets. Root and nested `.gitignore` patterns are not interpreted yet; implementing only part of Git's matching rules could hide relevant evidence.
+
+User-selectable or Enterprise-calibrated profiles, full `.gitignore` semantics, remote repositories, AI analysis, vulnerability scanning, artifact generation, and state-changing operations are deferred. The approved behavior and remaining decisions are documented in [PS-0001](docs/product/0001-local-repository-analysis.md).
 
 ## Contributing
 

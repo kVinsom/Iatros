@@ -21,11 +21,19 @@ func run() int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	analyzer := analysis.NewLocalStub()
+	services := cli.Services{}
+	localAnalyzer, err := analysis.NewLocalAnalyzer()
+	if err == nil {
+		services.Analysis = localAnalyzer
+	}
+	localTopologyAnalyzer, err := analysis.NewLocalTopologyAnalyzer()
+	if err == nil {
+		services.Topology = localTopologyAnalyzer
+	}
 	return cli.Run(
 		ctx,
 		version,
-		analyzer,
+		services,
 		os.Args[1:],
 		os.Stdout,
 		os.Stderr,

@@ -50,6 +50,7 @@ func validResultData(
 
 	for index, ecosystem := range ecosystems {
 		if !validLowerIdentifier(ecosystem.ID, ".-_") ||
+			!validLowerIdentifier(ecosystem.Category, "_") ||
 			len(ecosystem.Evidence) == 0 ||
 			!validSortedRelativePaths(ecosystem.Evidence) ||
 			(index > 0 && ecosystems[index-1].ID >= ecosystem.ID) {
@@ -70,14 +71,14 @@ func validResultData(
 func validFinding(finding Finding) bool {
 	if !validFindingCode(finding.Code) ||
 		!validSeverity(finding.Severity) ||
-		!validText(finding.Message) ||
+		!validPublicMessage(finding.Message) ||
 		len(finding.Evidence) == 0 ||
 		!strictlySortedStrings(finding.Evidence) ||
-		!validText(finding.Remediation) {
+		!validPublicMessage(finding.Remediation) {
 		return false
 	}
 	for _, evidence := range finding.Evidence {
-		if !validText(evidence) {
+		if !validPublicMessage(evidence) {
 			return false
 		}
 	}
@@ -92,7 +93,7 @@ func validDiagnostics(status Status, diagnostics []Diagnostic) bool {
 	for _, diagnostic := range diagnostics {
 		if !validDiagnosticCode(diagnostic.Code) ||
 			!validDiagnosticLevel(diagnostic.Level) ||
-			!validText(diagnostic.Message) {
+			!validPublicMessage(diagnostic.Message) {
 			return false
 		}
 	}
@@ -157,6 +158,40 @@ func validDiagnosticCode(value string) bool {
 		previousSeparator = true
 	}
 	return true
+}
+
+func validModelIssue(code, issuePath, message string) bool {
+	return validDiagnosticCode(code) &&
+		(issuePath == "." || validRelativePath(issuePath)) &&
+		validPublicMessage(message)
+}
+
+func validPublicMessage(value string) bool {
+	return validText(value) && !messageContainsSensitiveLocation(value)
+}
+
+func messageContainsSensitiveLocation(message string) bool {
+	for token := range strings.FieldsSeq(message) {
+		candidate := strings.Trim(token, "()[]{}<>,;:'\"")
+		if unsafeMessageLocation(candidate) {
+			return true
+		}
+		for value := range strings.SplitSeq(candidate, "=") {
+			if value != candidate && unsafeMessageLocation(
+				strings.Trim(value, "()[]{}<>,;:'\""),
+			) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func unsafeMessageLocation(value string) bool {
+	lower := strings.ToLower(value)
+	return path.IsAbs(value) || looksLikeWindowsPath(value) ||
+		strings.ContainsRune(value, '\\') || strings.Contains(lower, "://") ||
+		strings.HasPrefix(lower, "file:")
 }
 
 func upperAlphaNumeric(character byte) bool {

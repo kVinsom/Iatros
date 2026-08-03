@@ -69,8 +69,10 @@ type Summary struct {
 
 // Ecosystem records a detected project ecosystem and its local evidence.
 type Ecosystem struct {
-	ID       string   `json:"id"`
-	Evidence []string `json:"evidence"`
+	ID                string   `json:"id"`
+	Category          string   `json:"category"`
+	Evidence          []string `json:"evidence"`
+	EvidenceTruncated bool     `json:"evidence_truncated"`
 }
 
 // Finding describes an evidence-based repository-readiness observation.
