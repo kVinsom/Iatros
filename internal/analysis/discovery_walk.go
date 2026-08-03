@@ -9,16 +9,22 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/kVinsom/Iatros/internal/repositoryignore"
 	"github.com/kVinsom/Iatros/internal/repositorypath"
 )
 
 const directoryReadChunkSize = 128
 
 type discoveryWalker struct {
-	filesystem fs.FS
-	limits     DiscoveryLimits
-	inventory  Inventory
-	stopped    bool
+	filesystem         fs.FS
+	limits             DiscoveryLimits
+	inventory          Inventory
+	ignoreFiles        int
+	ignoreRules        int
+	declaredSubmodules map[string]struct{}
+	submoduleAncestors map[string]struct{}
+	seenSubmodules     map[string]struct{}
+	stopped            bool
 }
 
 func discoverFilesystem(
@@ -27,13 +33,16 @@ func discoverFilesystem(
 	limits DiscoveryLimits,
 ) (Inventory, error) {
 	walker := discoveryWalker{
-		filesystem: filesystem,
-		limits:     limits,
-		inventory:  emptyInventory(),
+		filesystem:         filesystem,
+		limits:             limits,
+		inventory:          emptyInventory(),
+		declaredSubmodules: make(map[string]struct{}),
+		submoduleAncestors: make(map[string]struct{}),
+		seenSubmodules:     make(map[string]struct{}),
 	}
 	walker.inventory.Directories = append(walker.inventory.Directories, ".")
 
-	err := walker.walk(ctx, ".", 0)
+	err := walker.walk(ctx, ".", 0, nil)
 	if err != nil {
 		walker.inventory.Partial = true
 	}
@@ -41,7 +50,12 @@ func discoverFilesystem(
 	return walker.inventory, err
 }
 
-func (w *discoveryWalker) walk(ctx context.Context, directory string, depth int) error {
+func (w *discoveryWalker) walk(
+	ctx context.Context,
+	directory string,
+	depth int,
+	inheritedRules []repositoryignore.Rule,
+) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -51,6 +65,19 @@ func (w *discoveryWalker) walk(ctx context.Context, directory string, depth int)
 		return err
 	}
 	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if directory != "." && nestedGitBoundary(entries) {
+		w.addSubmodule(directory)
+		return nil
+	}
+	if directory == "." {
+		if err := w.loadDeclaredSubmodules(ctx, entries); err != nil {
+			return err
+		}
+	}
+	rules, err := w.rulesForDirectory(ctx, directory, entries, inheritedRules)
+	if err != nil {
 		return err
 	}
 
@@ -87,6 +114,16 @@ func (w *discoveryWalker) walk(ctx context.Context, directory string, depth int)
 
 		switch {
 		case mode.IsDir():
+			declaredSubmodule := w.isDeclaredSubmodule(relativePath)
+			if !declaredSubmodule && !w.containsDeclaredSubmodule(relativePath) {
+				ignored, err := repositoryignore.IgnoredContext(ctx, rules, relativePath, true)
+				if err != nil {
+					return err
+				}
+				if ignored {
+					continue
+				}
+			}
 			if depth+1 > w.limits.MaxDepth {
 				w.addIssue(DiscoveryIssue{
 					Code:    DiscoveryIssueDepthLimit,
@@ -106,13 +143,26 @@ func (w *discoveryWalker) walk(ctx context.Context, directory string, depth int)
 			}
 
 			w.inventory.Directories = append(w.inventory.Directories, relativePath)
-			if err := w.walk(ctx, relativePath, depth+1); err != nil {
+			if declaredSubmodule {
+				w.addSubmodule(relativePath)
+				continue
+			}
+			if err := w.walk(ctx, relativePath, depth+1, rules); err != nil {
 				return err
 			}
 			if w.stopped {
 				return nil
 			}
 		case mode.IsRegular():
+			if !repositoryControlFile(entry.Name()) {
+				ignored, err := repositoryignore.IgnoredContext(ctx, rules, relativePath, false)
+				if err != nil {
+					return err
+				}
+				if ignored {
+					continue
+				}
+			}
 			if len(w.inventory.Files) >= w.limits.MaxFiles {
 				w.addIssue(DiscoveryIssue{
 					Code:    DiscoveryIssueFileLimit,
@@ -207,6 +257,8 @@ func recordDiscoveryIssue(inventory *Inventory, maxIssues int, issue DiscoveryIs
 func finalizeInventory(inventory *Inventory) {
 	slices.Sort(inventory.Directories)
 	slices.Sort(inventory.Files)
+	slices.Sort(inventory.NestedRepositories)
+	inventory.NestedRepositories = slices.Compact(inventory.NestedRepositories)
 	slices.SortFunc(inventory.Issues, func(left, right DiscoveryIssue) int {
 		if comparison := strings.Compare(left.Path, right.Path); comparison != 0 {
 			return comparison
@@ -228,4 +280,43 @@ func unreadablePathIssue(relativePath string) DiscoveryIssue {
 
 func ignoredDiscoveryEntry(name string) bool {
 	return repositorypath.IsExcludedDirectoryName(name)
+}
+
+func repositoryControlFile(name string) bool {
+	return name == ".gitignore" || name == ".gitmodules"
+}
+
+func nestedGitBoundary(entries []fs.DirEntry) bool {
+	entry := namedEntry(entries, ".git")
+	if entry == nil || entry.Type()&(fs.ModeSymlink|fs.ModeIrregular) != 0 {
+		return false
+	}
+	info, err := entry.Info()
+	return err == nil && (info.Mode().IsRegular() || info.IsDir())
+}
+
+func (w *discoveryWalker) isDeclaredSubmodule(directory string) bool {
+	_, exists := w.declaredSubmodules[directory]
+	return exists
+}
+
+func (w *discoveryWalker) containsDeclaredSubmodule(directory string) bool {
+	_, exists := w.submoduleAncestors[directory]
+	return exists
+}
+
+func (w *discoveryWalker) addSubmodule(directory string) {
+	if _, exists := w.seenSubmodules[directory]; exists {
+		return
+	}
+	w.seenSubmodules[directory] = struct{}{}
+	if len(w.inventory.NestedRepositories) >= w.limits.MaxNestedRepositories {
+		w.addIssue(DiscoveryIssue{
+			Code:    DiscoveryIssueNestedRepositoryLimit,
+			Path:    directory,
+			Message: "Additional nested repository boundaries were omitted by the configured limit.",
+		})
+		return
+	}
+	w.inventory.NestedRepositories = append(w.inventory.NestedRepositories, directory)
 }

@@ -5,7 +5,7 @@ import "errors"
 
 const (
 	// SchemaVersion identifies the current machine-readable report schema.
-	SchemaVersion = "0.1"
+	SchemaVersion = "0.3"
 	// TargetKindLocalDirectory identifies a repository rooted in a local directory.
 	TargetKindLocalDirectory = "local_directory"
 	// TargetRootPath is the privacy-safe path used for the selected analysis root.
@@ -23,6 +23,8 @@ const (
 	DiagnosticCodeAnalysisUnavailable = "IATROS_ANALYSIS_UNAVAILABLE"
 	// DiagnosticCodeTargetInvalid identifies an unsupported or inaccessible analysis root.
 	DiagnosticCodeTargetInvalid = "IATROS_TARGET_INVALID"
+	// DiagnosticCodeScalingProfileUnavailable identifies a profile disabled by composition.
+	DiagnosticCodeScalingProfileUnavailable = "IATROS_SCALING_PROFILE_UNAVAILABLE"
 )
 
 // ErrInvalidReport indicates that an analyzer returned a report outside the stable contract.
@@ -44,13 +46,14 @@ const (
 
 // Report is the versioned result envelope shared by all output formats.
 type Report struct {
-	SchemaVersion string       `json:"schema_version"`
-	Status        Status       `json:"status"`
-	Target        Target       `json:"target"`
-	Summary       Summary      `json:"summary"`
-	Ecosystems    []Ecosystem  `json:"ecosystems"`
-	Findings      []Finding    `json:"findings"`
-	Diagnostics   []Diagnostic `json:"diagnostics"`
+	SchemaVersion string             `json:"schema_version"`
+	Profile       ScalingProfileName `json:"profile"`
+	Status        Status             `json:"status"`
+	Target        Target             `json:"target"`
+	Summary       Summary            `json:"summary"`
+	Ecosystems    []Ecosystem        `json:"ecosystems"`
+	Findings      []Finding          `json:"findings"`
+	Diagnostics   []Diagnostic       `json:"diagnostics"`
 }
 
 // Target identifies the analyzed resource without exposing its absolute local path.
@@ -61,10 +64,11 @@ type Target struct {
 
 // Summary contains deterministic counts for the performed scan.
 type Summary struct {
-	DirectoriesScanned int `json:"directories_scanned"`
-	FilesScanned       int `json:"files_scanned"`
-	EcosystemsDetected int `json:"ecosystems_detected"`
-	FindingsTotal      int `json:"findings_total"`
+	DirectoriesScanned        int `json:"directories_scanned"`
+	FilesScanned              int `json:"files_scanned"`
+	NestedRepositoriesSkipped int `json:"nested_repositories_skipped"`
+	EcosystemsDetected        int `json:"ecosystems_detected"`
+	FindingsTotal             int `json:"findings_total"`
 }
 
 // Ecosystem records a detected project ecosystem and its local evidence.
@@ -161,6 +165,7 @@ func notImplementedDiagnostic() Diagnostic {
 func newReport(status Status) Report {
 	return Report{
 		SchemaVersion: SchemaVersion,
+		Profile:       ScalingProfileSmall,
 		Status:        status,
 		Target: Target{
 			Kind: TargetKindLocalDirectory,

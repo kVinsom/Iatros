@@ -22,6 +22,7 @@ func writeTopologyReport(
 
 func topologyReportNeedsNormalization(report analysis.TopologyReport) bool {
 	if report.Projects == nil || report.Workspaces == nil || report.Dependencies == nil ||
+		report.NestedRepositories == nil ||
 		report.Diagnostics == nil {
 		return true
 	}
@@ -78,6 +79,7 @@ func writeTopologyTextReport(writer io.Writer, report analysis.TopologyReport) e
 	output.line("IATROS Repository Topology")
 	output.printf("Schema version: %s\n", report.SchemaVersion)
 	output.printf("Report type: %s\n", report.ReportType)
+	output.printf("Profile: %s\n", report.Profile)
 	output.printf("Status: %s\n", textStatus(report.Status))
 	output.printf("Target kind: %s\n", report.Target.Kind)
 	output.printf("Target: %s\n", report.Target.Path)
@@ -90,6 +92,7 @@ func writeTopologyTextReport(writer io.Writer, report analysis.TopologyReport) e
 	}
 
 	writeTopologyTextSummary(output, report.Summary)
+	writeTopologyStringList(output, "Nested repositories skipped", "- ", report.NestedRepositories)
 	writeTopologyTextProjects(output, report.Projects)
 	writeTopologyTextWorkspaces(output, report.Workspaces)
 	writeTopologyTextDependencies(output, report.Dependencies)
@@ -107,6 +110,7 @@ func writeTopologyTextSummary(output *textWriter, summary analysis.TopologySumma
 	output.printf("- Internal dependencies: %d\n", summary.InternalDependencies)
 	output.printf("- Unresolved dependencies: %d\n", summary.UnresolvedDependencies)
 	output.printf("- Ambiguous dependencies: %d\n", summary.AmbiguousDependencies)
+	output.printf("- Nested repositories skipped: %d\n", summary.NestedRepositoriesSkipped)
 }
 
 func writeTopologyTextProjects(output *textWriter, projects []analysis.TopologyProject) {

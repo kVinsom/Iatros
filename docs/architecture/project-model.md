@@ -33,7 +33,7 @@ bounded root-relative file inventory
  validated topology CLI reporting
 ```
 
-This stage deliberately remains independent from `internal/analysis`, Cobra, JSON rendering, concrete providers, and external SDKs. `internal/topology` consumes its output and the bounded manifest model through a separate association boundary. `internal/analysis` then maps the associated model into the separate topology schema, leaving the readiness-analysis schema unchanged.
+This stage deliberately remains independent from `internal/analysis`, Cobra, JSON rendering, concrete providers, and external SDKs. `internal/topology` consumes its output and the bounded manifest model through a separate association boundary. `internal/analysis` then maps the associated model into the independent topology schema.
 
 ## 2. Model
 
@@ -153,7 +153,7 @@ This is a boundary-model policy, not a discovery exclusion. Discovery remains re
 
 A partial discovery snapshot can still contain trustworthy positive boundary evidence, so the detector returns found projects and workspaces with `Model.Partial` set to `true`. Consumers must not interpret the returned list as complete. The topology report maps this state to `status: partial` and always includes a warning diagnostic.
 
-The detector performs no filesystem calls. It receives only the safe inventory, does not interpret `.gitignore`, does not read manifest values, and has no network or command-execution capability.
+The detector performs no filesystem calls. It receives the already filtered safe inventory, does not independently interpret `.gitignore`, does not read manifest values, and has no network or command-execution capability.
 
 ## 9. Deferred enrichment
 
@@ -170,12 +170,12 @@ Future enrichment must preserve the implemented safe relative paths, explicit li
 
 ## 10. Scalable manifest-processing requirement
 
-IATROS must support both small standalone repositories and very large company-scale monorepositories. Conservative defaults are a safety profile, not a permanent domain maximum.
+IATROS supports small standalone repositories and large company-scale monorepositories through explicit [unified scaling profiles](scaling-profiles.md). The default is a safety profile, not a permanent domain maximum.
 
 The implemented manifest-processing architecture uses:
 
 - validated injectable limits for file count, bytes per file, total bytes, nesting, retained entries, memory, and duration;
-- code-level conservative and large-repository profiles, with user-selectable and Enterprise-calibrated profiles deferred;
+- selectable `small` and `monorepo` CLI profiles plus an Enterprise per-worker profile reserved for entitlement-aware composition;
 - a provider-neutral parser contract that accepts bounded input and returns the same normalized manifest facts and diagnostics regardless of implementation;
 - lightweight standard-library JSON and XML implementations as the initial default;
 - one-document-at-a-time processing, bounded built-in buffering, and a reader contract that permits specialized streaming parsers;

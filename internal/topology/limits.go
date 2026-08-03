@@ -22,6 +22,7 @@ type Limits struct {
 	MaxMatchesPerDeclaration int
 	MaxDependencies          int
 	MaxTargetsPerDependency  int
+	MaxNestedRepositories    int
 	MaxIssues                int
 	MaxValueBytes            int
 	Timeout                  time.Duration
@@ -38,6 +39,7 @@ func DefaultLimits() Limits {
 		MaxMatchesPerDeclaration: 500,
 		MaxDependencies:          20_000,
 		MaxTargetsPerDependency:  20,
+		MaxNestedRepositories:    100,
 		MaxIssues:                100,
 		MaxValueBytes:            4 * 1024,
 		Timeout:                  3 * time.Second,
@@ -55,6 +57,7 @@ func LargeRepositoryLimits() Limits {
 		MaxMatchesPerDeclaration: 10_000,
 		MaxDependencies:          1_000_000,
 		MaxTargetsPerDependency:  100,
+		MaxNestedRepositories:    5_000,
 		MaxIssues:                1_000,
 		MaxValueBytes:            64 * 1024,
 		Timeout:                  60 * time.Second,
@@ -66,7 +69,8 @@ func (l Limits) Validate() error {
 	if l.MaxProjects <= 0 || l.MaxWorkspaces <= 0 || l.MaxManifests <= 0 ||
 		l.MaxComponentsPerBoundary <= 0 || l.MaxWorkspaceDeclarations <= 0 ||
 		l.MaxMatchesPerDeclaration <= 0 || l.MaxDependencies <= 0 ||
-		l.MaxTargetsPerDependency <= 0 || l.MaxIssues <= 0 || l.MaxValueBytes <= 0 ||
+		l.MaxTargetsPerDependency <= 0 || l.MaxNestedRepositories <= 0 ||
+		l.MaxIssues <= 0 || l.MaxValueBytes <= 0 ||
 		l.Timeout <= 0 {
 		return ErrInvalidLimits
 	}

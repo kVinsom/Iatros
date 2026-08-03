@@ -1,7 +1,7 @@
 # Manifest Analysis Architecture
 
 > [!IMPORTANT]
-> **Status: implemented and consumed by the topology CLI workflow.** The current `internal/manifest` capability safely reads an explicit set of repository manifests, normalizes direct dependencies and workspace declarations, and returns bounded diagnostics. `iatros topology` exposes mapped facts through the separate `repository_topology` schema while `iatros analyze` remains metadata-only.
+> **Status: implemented and consumed by the topology CLI workflow.** The current `internal/manifest` capability safely reads an explicit set of repository manifests, normalizes direct dependencies and workspace declarations, and returns bounded diagnostics. `iatros topology` exposes mapped facts through the separate `repository_topology` schema while `iatros analyze` remains content-free beyond bounded ignore and submodule control files.
 
 See also:
 
@@ -98,9 +98,9 @@ Built-in parsers currently buffer one already byte-bounded document because the 
 
 ## 6. Resource profiles
 
-Limits are validated, injectable configuration rather than domain constants. Two code-level profiles provide safe starting points:
+Limits are validated, injectable configuration rather than domain constants. The manifest stage receives its limits from the active [unified scaling profile](scaling-profiles.md). Its first two runnable modes are:
 
-| Limit | Conservative default | Large-repository profile |
+| Limit | `small` | `monorepo` |
 | --- | ---: | ---: |
 | Manifest files | 100 | 2,000 |
 | Bytes per file | 256 KiB | 8 MiB |
@@ -114,7 +114,7 @@ Limits are validated, injectable configuration rather than domain constants. Two
 | Bytes in one retained value | 4 KiB | 64 KiB |
 | Analysis duration | 3 seconds | 30 seconds |
 
-The CLI does not expose profile selection yet. Large deployments may compose a different validated profile; no repository-size ceiling appears in the normalized model or parser interface. Limit validation rejects impossible byte profiles that would overflow the one-byte size sentinel, and total-byte accounting saturates at its configured maximum. Production or Enterprise defaults require measurements from representative repositories before release.
+The CLI exposes `small` and `monorepo` through `--profile`; `small` remains the default. The validated Enterprise per-worker profile increases manifest limits again but is enabled only by an Enterprise-aware composition. No repository-size ceiling appears in the normalized model or parser interface. Limit validation rejects impossible byte profiles that would overflow the one-byte size sentinel, and total-byte accounting saturates at its configured maximum.
 
 ## 7. Replaceable parser backends
 
@@ -145,10 +145,10 @@ A cancellation or invalid snapshot returns an error instead of a successful part
 
 ## 9. Verification
 
-Tests cover all built-in formats, explicit empty workspaces, deterministic normalization, optional and scoped dependencies, workspace members and exclusions, conservative and large profiles, custom backends, backend ownership isolation, backend collisions, incomplete and malformed backend results, cancellation, traversal rejection, symlink rejection, exact and case-fold-equivalent duplicate JSON keys, trailing JSON, XML directives, multiple XML roots, nesting limits, collection limits, normal and maximum byte-limit arithmetic, diagnostic limits, and local and remote reference redaction.
+Tests cover all built-in formats, explicit empty workspaces, deterministic normalization, optional and scoped dependencies, workspace members and exclusions, `small` and `monorepo` limits, custom backends, backend ownership isolation, backend collisions, incomplete and malformed backend results, cancellation, traversal rejection, symlink rejection, exact and case-fold-equivalent duplicate JSON keys, trailing JSON, XML directives, multiple XML roots, nesting limits, collection limits, normal and maximum byte-limit arithmetic, diagnostic limits, and local and remote reference redaction.
 
 The 100-document local benchmark exists to detect large allocation or throughput regressions. It is evidence for engineering comparisons, not a release service-level objective.
 
 ## 10. Topology and public-report integration
 
-`internal/topology` associates normalized manifests with project boundaries, resolves only repository-confined workspace members, identifies direct local dependency targets, and propagates manifest diagnostics. `internal/analysis.LocalTopologyAnalyzer` composes the complete local pipeline. The `iatros topology` adapter maps this model into validated schema `0.1` text or JSON. `iatros analyze` has its own unchanged schema `0.1` and continues to perform metadata-only discovery.
+`internal/topology` associates normalized manifests with project boundaries, resolves only repository-confined workspace members, identifies direct local dependency targets, and propagates manifest diagnostics. `internal/analysis.LocalTopologyAnalyzer` composes the complete local pipeline. The `iatros topology` adapter maps this model into validated schema `0.3` text or JSON. `iatros analyze` uses its own schema `0.3` and reads only bounded repository ignore/submodule control files beyond ordinary metadata.

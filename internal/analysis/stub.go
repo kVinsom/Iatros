@@ -19,7 +19,8 @@ var (
 
 // Request identifies the local root selected for analysis.
 type Request struct {
-	Root string
+	Root    string
+	Profile ScalingProfileName
 }
 
 // LocalStub validates a local target without scanning repository content.
@@ -32,22 +33,30 @@ func NewLocalStub() LocalStub {
 
 // Analyze validates the selected root and returns the approved not-implemented report.
 func (LocalStub) Analyze(ctx context.Context, request Request) (Report, error) {
+	profile := normalizedScalingProfileName(request.Profile)
+	if !validScalingProfileName(profile) {
+		return failedProfileReport(
+			ScalingProfileSmall,
+			DiagnosticCodeScalingProfileUnavailable,
+			"The requested scaling profile is invalid.",
+		), ErrInvalidScalingProfile
+	}
 	if err := ctx.Err(); err != nil {
-		return NewCanceledReport(), err
+		return reportWithProfile(NewCanceledReport(), profile), err
 	}
 
 	if err := validateLocalDirectory(request.Root); err != nil {
 		if errors.Is(err, ErrInvalidTarget) {
-			return NewInvalidTargetReport(), ErrInvalidTarget
+			return reportWithProfile(NewInvalidTargetReport(), profile), ErrInvalidTarget
 		}
-		return NewAnalysisFailedReport(), err
+		return reportWithProfile(NewAnalysisFailedReport(), profile), err
 	}
 
 	if err := ctx.Err(); err != nil {
-		return NewCanceledReport(), err
+		return reportWithProfile(NewCanceledReport(), profile), err
 	}
 
-	return NewNotImplementedReport(), ErrNotImplemented
+	return reportWithProfile(NewNotImplementedReport(), profile), ErrNotImplemented
 }
 
 func validateLocalDirectory(path string) error {

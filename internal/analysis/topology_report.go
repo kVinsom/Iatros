@@ -9,7 +9,7 @@ import (
 
 const (
 	// TopologySchemaVersion identifies the current repository-topology report schema.
-	TopologySchemaVersion = "0.1"
+	TopologySchemaVersion = "0.3"
 	// ReportTypeRepositoryTopology identifies repository-topology reports.
 	ReportTypeRepositoryTopology = "repository_topology"
 )
@@ -27,26 +27,29 @@ const (
 
 // TopologyReport is the versioned repository-topology envelope shared by all output formats.
 type TopologyReport struct {
-	SchemaVersion string               `json:"schema_version"`
-	ReportType    string               `json:"report_type"`
-	Status        Status               `json:"status"`
-	Target        Target               `json:"target"`
-	Summary       TopologySummary      `json:"summary"`
-	Projects      []TopologyProject    `json:"projects"`
-	Workspaces    []TopologyWorkspace  `json:"workspaces"`
-	Dependencies  []TopologyDependency `json:"dependencies"`
-	Diagnostics   []Diagnostic         `json:"diagnostics"`
+	SchemaVersion      string               `json:"schema_version"`
+	ReportType         string               `json:"report_type"`
+	Profile            ScalingProfileName   `json:"profile"`
+	Status             Status               `json:"status"`
+	Target             Target               `json:"target"`
+	Summary            TopologySummary      `json:"summary"`
+	Projects           []TopologyProject    `json:"projects"`
+	Workspaces         []TopologyWorkspace  `json:"workspaces"`
+	Dependencies       []TopologyDependency `json:"dependencies"`
+	NestedRepositories []string             `json:"nested_repositories"`
+	Diagnostics        []Diagnostic         `json:"diagnostics"`
 }
 
 // TopologySummary contains deterministic counts for one topology report.
 type TopologySummary struct {
-	ProjectsTotal          int `json:"projects_total"`
-	WorkspacesTotal        int `json:"workspaces_total"`
-	ComponentsTotal        int `json:"components_total"`
-	DependenciesTotal      int `json:"dependencies_total"`
-	InternalDependencies   int `json:"internal_dependencies"`
-	UnresolvedDependencies int `json:"unresolved_dependencies"`
-	AmbiguousDependencies  int `json:"ambiguous_dependencies"`
+	ProjectsTotal             int `json:"projects_total"`
+	WorkspacesTotal           int `json:"workspaces_total"`
+	ComponentsTotal           int `json:"components_total"`
+	DependenciesTotal         int `json:"dependencies_total"`
+	InternalDependencies      int `json:"internal_dependencies"`
+	UnresolvedDependencies    int `json:"unresolved_dependencies"`
+	AmbiguousDependencies     int `json:"ambiguous_dependencies"`
+	NestedRepositoriesSkipped int `json:"nested_repositories_skipped"`
 }
 
 // TopologyMarker records one project or workspace boundary signal.
@@ -133,6 +136,7 @@ func NewTopologyReport(model topology.Model) (TopologyReport, error) {
 	report.Projects = copyTopologyProjects(model.Projects)
 	report.Workspaces = copyTopologyWorkspaces(model.Workspaces)
 	report.Dependencies = copyTopologyDependencies(model.Dependencies)
+	report.NestedRepositories = copyTopologyPaths(model.NestedRepositories)
 	report.Diagnostics = topologyDiagnostics(model.Issues)
 	if model.Partial || len(report.Diagnostics) > 0 {
 		report.Status = StatusPartial
@@ -228,6 +232,11 @@ func (r TopologyReport) Normalized() TopologyReport {
 			)
 		}
 	}
+	if r.NestedRepositories == nil {
+		r.NestedRepositories = make([]string, 0)
+	} else {
+		r.NestedRepositories = slices.Clone(r.NestedRepositories)
+	}
 	if r.Diagnostics == nil {
 		r.Diagnostics = make([]Diagnostic, 0)
 	} else {
@@ -240,15 +249,17 @@ func newTopologyReport(status Status) TopologyReport {
 	return TopologyReport{
 		SchemaVersion: TopologySchemaVersion,
 		ReportType:    ReportTypeRepositoryTopology,
+		Profile:       ScalingProfileSmall,
 		Status:        status,
 		Target: Target{
 			Kind: TargetKindLocalDirectory,
 			Path: TargetRootPath,
 		},
-		Projects:     make([]TopologyProject, 0),
-		Workspaces:   make([]TopologyWorkspace, 0),
-		Dependencies: make([]TopologyDependency, 0),
-		Diagnostics:  make([]Diagnostic, 0),
+		Projects:           make([]TopologyProject, 0),
+		Workspaces:         make([]TopologyWorkspace, 0),
+		Dependencies:       make([]TopologyDependency, 0),
+		NestedRepositories: make([]string, 0),
+		Diagnostics:        make([]Diagnostic, 0),
 	}
 }
 
@@ -312,6 +323,13 @@ func copyTopologyDependencies(values []topology.Dependency) []TopologyDependency
 		})
 	}
 	return dependencies
+}
+
+func copyTopologyPaths(values []string) []string {
+	if values == nil {
+		return make([]string, 0)
+	}
+	return slices.Clone(values)
 }
 
 func copyTopologyMarkers(values []topology.Marker) []TopologyMarker {
@@ -401,10 +419,11 @@ func topologySummary(report TopologyReport) TopologySummary {
 	}
 
 	summary := TopologySummary{
-		ProjectsTotal:     len(report.Projects),
-		WorkspacesTotal:   len(report.Workspaces),
-		ComponentsTotal:   len(componentKeys),
-		DependenciesTotal: len(report.Dependencies),
+		ProjectsTotal:             len(report.Projects),
+		WorkspacesTotal:           len(report.Workspaces),
+		ComponentsTotal:           len(componentKeys),
+		DependenciesTotal:         len(report.Dependencies),
+		NestedRepositoriesSkipped: len(report.NestedRepositories),
 	}
 	for _, dependency := range report.Dependencies {
 		switch dependency.Resolution {

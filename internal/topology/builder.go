@@ -27,6 +27,8 @@ const (
 	IssueDependencyLimit = "IATROS_TOPOLOGY_DEPENDENCY_LIMIT"
 	// IssueDependencyTargetLimit identifies omitted ambiguous dependency targets.
 	IssueDependencyTargetLimit = "IATROS_TOPOLOGY_DEPENDENCY_TARGET_LIMIT"
+	// IssueNestedRepositoryLimit identifies omitted nested repository boundaries.
+	IssueNestedRepositoryLimit = "IATROS_TOPOLOGY_NESTED_REPOSITORY_LIMIT"
 	// IssueManifestUnassigned identifies a manifest without a retained project boundary.
 	IssueManifestUnassigned = "IATROS_TOPOLOGY_MANIFEST_UNASSIGNED"
 	// IssueMemberUnsupported identifies unsupported workspace pattern semantics.
@@ -81,6 +83,14 @@ func (b Builder) Build(ctx context.Context, snapshot Snapshot) (Model, error) {
 	if err != nil {
 		return model, err
 	}
+	nestedRepositories, err := limitedNestedRepositories(
+		buildCtx,
+		snapshot.NestedRepositories,
+		b.limits.MaxNestedRepositories,
+	)
+	if err != nil {
+		return model, err
+	}
 	if err := validateInputs(
 		buildCtx,
 		projects,
@@ -89,6 +99,9 @@ func (b Builder) Build(ctx context.Context, snapshot Snapshot) (Model, error) {
 		b.limits,
 	); err != nil {
 		return model, err
+	}
+	if !validNestedRepositories(nestedRepositories, projects, workspaces) {
+		return model, ErrInvalidSnapshot
 	}
 	inheritedIssues, issuesTruncated, err := limitedSnapshotIssues(
 		buildCtx,
@@ -115,6 +128,12 @@ func (b Builder) Build(ctx context.Context, snapshot Snapshot) (Model, error) {
 		model.addIssue(Issue{
 			Code: IssueManifestLimit, Path: ".",
 			Message: "additional manifests were omitted by the configured topology limit",
+		}, b.limits.MaxIssues)
+	}
+	if len(snapshot.NestedRepositories) > len(nestedRepositories) {
+		model.addIssue(Issue{
+			Code: IssueNestedRepositoryLimit, Path: ".",
+			Message: "additional nested repository boundaries were omitted by the configured topology limit",
 		}, b.limits.MaxIssues)
 	}
 	for _, issue := range inheritedIssues {
@@ -149,6 +168,7 @@ func (b Builder) Build(ctx context.Context, snapshot Snapshot) (Model, error) {
 
 	model.Projects = finalizeProjects(projectStates)
 	model.Workspaces = finalizeWorkspaces(workspaceStates)
+	model.NestedRepositories = nestedRepositories
 	slices.SortFunc(model.Dependencies, compareDependencies)
 	model.Dependencies = slices.CompactFunc(model.Dependencies, equalDependencies)
 	slices.SortFunc(model.Issues, compareIssues)
@@ -318,6 +338,55 @@ func limitedManifests(
 	return boundedLexicalTopN(ctx, values, maximum, func(value manifest.Manifest) string {
 		return value.Path
 	})
+}
+
+func limitedNestedRepositories(
+	ctx context.Context,
+	values []string,
+	maximum int,
+) ([]string, error) {
+	return boundedLexicalTopN(ctx, values, maximum, func(value string) string {
+		return value
+	})
+}
+
+func validNestedRepositories(
+	values []string,
+	projects []project.Project,
+	workspaces []project.Workspace,
+) bool {
+	boundaries := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		if !validFile(value) {
+			return false
+		}
+		for ancestor := path.Dir(value); ancestor != "."; ancestor = path.Dir(ancestor) {
+			if _, nested := boundaries[ancestor]; nested {
+				return false
+			}
+		}
+		boundaries[value] = struct{}{}
+	}
+	for _, value := range projects {
+		if pathInsideNestedRepository(value.Root, boundaries) {
+			return false
+		}
+	}
+	for _, value := range workspaces {
+		if pathInsideNestedRepository(value.Root, boundaries) {
+			return false
+		}
+	}
+	return true
+}
+
+func pathInsideNestedRepository(value string, boundaries map[string]struct{}) bool {
+	for candidate := value; candidate != "."; candidate = path.Dir(candidate) {
+		if _, nested := boundaries[candidate]; nested {
+			return true
+		}
+	}
+	return false
 }
 
 func boundedLexicalTopN[T any](
@@ -515,11 +584,12 @@ func siftDownLargest[T any](values []T, index int, key func(T) string) {
 
 func emptyModel(partial bool) Model {
 	return Model{
-		Projects:     make([]Project, 0),
-		Workspaces:   make([]Workspace, 0),
-		Dependencies: make([]Dependency, 0),
-		Issues:       make([]Issue, 0),
-		Partial:      partial,
+		Projects:           make([]Project, 0),
+		Workspaces:         make([]Workspace, 0),
+		Dependencies:       make([]Dependency, 0),
+		NestedRepositories: make([]string, 0),
+		Issues:             make([]Issue, 0),
+		Partial:            partial,
 	}
 }
 

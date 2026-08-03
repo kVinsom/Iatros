@@ -68,6 +68,7 @@ func TestReportValidateRejectsInvalidData(t *testing.T) {
 		mutate func(*Report)
 	}{
 		{name: "schema", mutate: func(report *Report) { report.SchemaVersion = "9" }},
+		{name: "profile", mutate: func(report *Report) { report.Profile = "large" }},
 		{name: "status", mutate: func(report *Report) { report.Status = Status("unknown") }},
 		{name: "target kind", mutate: func(report *Report) { report.Target.Kind = "remote" }},
 		{name: "target path", mutate: func(report *Report) { report.Target.Path = "/private/root" }},
@@ -81,6 +82,12 @@ func TestReportValidateRejectsInvalidData(t *testing.T) {
 			name: "negative file count",
 			mutate: func(report *Report) {
 				report.Summary.FilesScanned = -1
+			},
+		},
+		{
+			name: "negative nested repository count",
+			mutate: func(report *Report) {
+				report.Summary.NestedRepositoriesSkipped = -1
 			},
 		},
 		{

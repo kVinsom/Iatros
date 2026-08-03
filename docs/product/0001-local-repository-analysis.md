@@ -1,7 +1,7 @@
 # PS-0001: Local Repository Analysis
 
 - **Product status:** Approved
-- **Implementation status:** Initial local slice implemented
+- **Implementation status:** Complete local repository analysis baseline implemented
 - **Approved:** 2026-08-01
 - **Primary users:** DevOps engineers and software developers
 - **Interface language:** English
@@ -14,8 +14,10 @@ Related documents:
 - [Security architecture](../architecture/security.md)
 - [Testing strategy](../architecture/testing.md)
 - [Manifest analysis architecture](../architecture/manifest-analysis.md)
+- [Repository discovery architecture](../architecture/repository-discovery.md)
 - [ADR-0004: Control state-changing operations](../architecture/decisions/0004-control-state-changing-operations.md)
 - [ADR-0005: Use Cobra as the CLI adapter](../architecture/decisions/0005-use-cobra-as-the-cli-adapter.md)
+- [ADR-0007: Use bounded repository-owned ignore rules](../architecture/decisions/0007-use-bounded-repository-owned-ignore-rules.md)
 
 ## Implementation progress
 
@@ -30,8 +32,10 @@ Related documents:
 | Discovery diagnostics and partial-report policy | Implemented and integrated |
 | Deterministic text and JSON output | Implemented and integration-tested |
 | Project and workspace boundary model | Implemented and exposed through topology reports |
-| Bounded manifest analysis | Seven formats, normalized direct declarations, conservative and large profiles, and replaceable backends implemented; conservative profile exposed through topology reports |
+| Bounded manifest analysis | Seven formats, normalized direct declarations, unified scaling profiles, and replaceable backends implemented |
 | Repository topology | Local project/component association, workspace membership, direct dependency edges, and versioned CLI text/JSON implemented |
+| Scaling profiles | `small` and `monorepo` selectable in both commands; Enterprise per-worker profile implemented for gated composition |
+| Ignore and nested-repository handling | Root and nested Git-style rules, submodules, and nested Git worktrees implemented in shared discovery |
 
 ## 1. Summary
 
@@ -42,7 +46,7 @@ iatros analyze [flags] [path]
 iatros topology [flags] [path]
 ```
 
-`analyze` detects project ecosystems and operational markers and produces an evidence-based readiness report. `topology` safely reads allowlisted manifests and produces project, component, workspace, and direct dependency relationships. Both return text or JSON.
+`analyze` applies bounded repository ignore rules, isolates nested repositories, detects project ecosystems and operational markers, and produces an evidence-based readiness report. `topology` uses the same inventory, safely reads allowlisted manifests, and produces project, component, workspace, and direct dependency relationships. Both return text or JSON.
 
 The default CLI now runs the implemented analyzer. The stable envelope still permits an explicit `not_implemented` result for a future analyzer implementation that is deliberately unavailable; it must never fabricate ecosystems, findings, scan counts, or successful analysis.
 
@@ -82,7 +86,9 @@ The first vertical slice will:
 7. keep ordering and machine-readable output deterministic;
 8. preserve a stable result envelope from the initial stub through real analysis;
 9. make every finding traceable to local evidence;
-10. fail honestly when analysis is unavailable, invalid, incomplete, or unsuccessful.
+10. fail honestly when analysis is unavailable, invalid, incomplete, or unsuccessful;
+11. honor repository-owned ignore rules without unbounded control-file reads;
+12. prevent submodule and nested-worktree content from being attributed to the parent repository.
 
 ## 5. Non-goals
 
@@ -118,10 +124,12 @@ iatros topology [flags] [path]
 | `path` | No | `.` | Local directory to analyze. |
 | `--format text` | No | Selected | Human-readable report. |
 | `--format json` | No | — | Machine-readable report using the versioned result envelope. |
+| `--profile small` | No | Selected | Conservative complete-pipeline resource profile. |
+| `--profile monorepo` | No | — | Explicit larger profile for multi-project repositories. |
 
 Unknown flags, unsupported formats, or more than one positional path are usage errors.
 
-The commands use separate versioned envelopes. Adding topology did not change the established `analyze` schema or its metadata-only behavior.
+The commands use separate versioned envelopes. Both current schemas are `0.3` and record the active profile and skipped nested-repository count. `analyze` reads only bounded repository control files in addition to ordinary file metadata.
 
 ### Output streams
 
@@ -165,11 +173,12 @@ A future opt-in policy such as `--fail-on` may map findings to a non-zero exit c
 
 ## 9. JSON envelope
 
-The initial schema version is `0.1`.
+The current analysis schema version is `0.3`. Version `0.2` added the active profile; version `0.3` adds the skipped nested-repository count.
 
 ```json
 {
-  "schema_version": "0.1",
+  "schema_version": "0.3",
+  "profile": "small",
   "status": "completed",
   "target": {
     "kind": "local_directory",
@@ -178,6 +187,7 @@ The initial schema version is `0.1`.
   "summary": {
     "directories_scanned": 3,
     "files_scanned": 7,
+    "nested_repositories_skipped": 0,
     "ecosystems_detected": 3,
     "findings_total": 0
   },
@@ -226,12 +236,13 @@ The initial schema version is `0.1`.
 
 ### Repository topology envelope
 
-`iatros topology` has an independent schema version `0.1` and fixed `report_type: repository_topology`:
+`iatros topology` has an independent schema version `0.3`, fixed `report_type: repository_topology`, and required active profile:
 
 ```json
 {
-  "schema_version": "0.1",
+  "schema_version": "0.3",
   "report_type": "repository_topology",
+  "profile": "small",
   "status": "completed",
   "target": {"kind": "local_directory", "path": "."},
   "summary": {
@@ -241,16 +252,18 @@ The initial schema version is `0.1`.
     "dependencies_total": 0,
     "internal_dependencies": 0,
     "unresolved_dependencies": 0,
-    "ambiguous_dependencies": 0
+    "ambiguous_dependencies": 0,
+    "nested_repositories_skipped": 0
   },
   "projects": [],
   "workspaces": [],
   "dependencies": [],
+  "nested_repositories": [],
   "diagnostics": []
 }
 ```
 
-All top-level and nested collections are arrays when empty. Projects include roots, kinds, workspace relationships, markers, and parsed components. Workspaces include containment, explicit member and exclusion matches, and declaration resolution. Dependencies include their source, ecosystem, declaration details, resolution, and bounded local targets. Every path is root-relative; no timestamp, absolute target, or raw manifest content is included. The complete field and validation contract is documented in [Repository Topology Architecture](../architecture/topology.md#10-public-cli-contract).
+All top-level and nested collections are arrays when empty. Projects include roots, kinds, workspace relationships, markers, and parsed components. Workspaces include containment, explicit member and exclusion matches, and declaration resolution. Dependencies include their source, ecosystem, declaration details, resolution, and bounded local targets. Nested repository paths identify submodules or embedded Git worktrees deliberately excluded from the parent analysis. Every path is root-relative; no timestamp, absolute target, remote submodule URL, or raw manifest content is included. The complete field and validation contract is documented in [Repository Topology Architecture](../architecture/topology.md#10-public-cli-contract).
 
 ## 10. Ecosystem result
 
@@ -375,7 +388,7 @@ The implementation must:
 - prevent traversal outside the root;
 - skip VCS internals such as `.git/`;
 - never read values from `.env`, credentials, private keys, certificates, tokens, or known secret stores;
-- keep the active schema `0.1` report path metadata-only; internal enrichment may read only exact registered manifest filenames through a confined source and separate validated limits;
+- keep the active analysis schema `0.3` report path metadata-only except for bounded `.gitignore` and root `.gitmodules` control files; topology enrichment may additionally read only exact registered manifest filenames through a confined source and the active validated profile;
 - use relative evidence paths and avoid exposing local usernames or absolute paths;
 - enforce file-count, directory-count, directory-depth, per-directory entry, retained-issue, evidence, and execution-time limits;
 - return `partial` or `failed` with diagnostics when safe analysis cannot continue;
@@ -390,13 +403,18 @@ The internal discovery baseline uses the following conservative defaults:
 | Directory depth below the root | 20 |
 | Structured discovery issues retained | 50 |
 | Entries accepted from one directory | 2,500 |
+| Ignore files | 100 |
+| Bytes per ignore/control file | 256 KiB |
+| Bytes per ignore pattern | 4 KiB |
+| Retained ignore rules | 10,000 |
+| Nested repository boundaries | 100 |
 | Discovery duration | 5 seconds |
 
-Discovery reads directory entries and file metadata only. It retains one confined `os.Root`, returns sorted root-relative paths, skips symbolic links, junction-like irregular entries, `.git`, `.hg`, and `.svn`, and never opens regular files. Access failures and reached limits produce bounded structured issues that can later support deterministic or AI-assisted remediation comments.
+Discovery reads directory entries, file metadata, bounded `.gitignore` files, and bounded root `.gitmodules`. It retains one confined `os.Root`, returns sorted root-relative paths, skips symbolic links, junction-like irregular entries, `.git`, `.hg`, and `.svn`, applies ordered root and nested Git-style rules, and isolates submodules and nested Git worktrees. Other regular files are never opened. Access failures and reached limits produce bounded structured issues that can later support deterministic or AI-assisted remediation comments.
 
 The separate internal manifest stage may open `go.mod`, `go.work`, `package.json`, `pyproject.toml`, `Cargo.toml`, `composer.json`, and `pom.xml` after discovery. It processes one document at a time and uses independent exact-filename, identity, byte, nesting, retained-value, collection, cancellation, and diagnostic controls. It does not execute tools, resolve external entities, contact registries, or retain raw content and parser errors in its result.
 
-| Manifest limit | Conservative default | Large-repository profile |
+| Manifest limit | `small` | `monorepo` |
 | --- | ---: | ---: |
 | Files | 100 | 2,000 |
 | Bytes per file | 256 KiB | 8 MiB |
@@ -410,9 +428,9 @@ The separate internal manifest stage may open `go.mod`, `go.work`, `package.json
 | Bytes per retained value | 4 KiB | 64 KiB |
 | Analysis duration | 3 seconds | 30 seconds |
 
-These are injectable profiles, not product-wide repository ceilings. CLI selection and release-calibrated Enterprise defaults remain deferred.
+These limits are now selected through the complete `small`, `monorepo`, or Enterprise per-worker profile rather than independently. The default CLI exposes `small` and `monorepo`; the complete values and Enterprise activation boundary are defined in [Scaling profiles](../architecture/scaling-profiles.md).
 
-Root and nested `.gitignore` rules are not interpreted in this increment. Correct support requires nested rule scope, negation, escaping, and anchored matching; partial support could hide relevant evidence. The `.gitignore` file itself remains visible in inventory, while its patterns do not change traversal.
+Root and nested `.gitignore` files support scoped last-match precedence, negation, escaping, anchoring, directory-only rules, standard wildcards, ranges, and defined globstar forms. If a complete ignore file cannot be applied within its bounds, IATROS keeps a wider partial inventory instead of applying an order-sensitive prefix. Repository-owned rules are deterministic and intentionally exclude user-global Git settings, `.git/info/exclude`, and index tracking state. The complete contract is documented in [Repository discovery architecture](../architecture/repository-discovery.md).
 
 ## 14. Placeholder compatibility contract
 
@@ -450,33 +468,38 @@ The product specification is satisfied when:
 11. Unit tests cover parsing, result formatting, ordering, and error mapping.
 12. Integration tests prove the local-only, read-only path from CLI input to report output.
 13. The README is updated only when runnable behavior exists and uses verified commands.
-14. `iatros topology` exposes the associated local model through a separate validated schema without changing `iatros analyze`.
+14. `iatros topology` exposes the associated local model through a separate validated schema; both reports identify the active scaling profile.
+15. Root and nested repository-owned ignore rules affect both commands through the same bounded discovery snapshot.
+16. Declared submodules and detected nested Git worktrees are reported but their contents are not analyzed as parent projects.
+17. Oversized control files and manifests produce explicit bounded partial results without unbounded reads.
 
 ## 16. Implementation sequence
 
 1. **Contract stub — complete:** initialize the Go module and return the approved placeholder envelope.
-2. **Safe discovery — complete:** add bounded local filesystem inventory without content analysis.
+2. **Safe discovery — complete:** add bounded ignore-aware local inventory with explicit control-file exceptions.
 3. **Marker detection — complete:** populate ecosystems from direct evidence.
 4. **Readiness rules — complete:** populate findings from supported repository markers.
 5. **Integration — complete:** compose discovery, detection, readiness, diagnostics, report validation, text/JSON rendering, exit behavior, and documentation.
 
 The working ten-step plan counts the Go module and Cobra foundation separately from the contract stub. In that plan:
 
-- **Step 7, project boundaries — complete internally:** identify nested project and workspace roots without changing schema `0.1`.
+- **Step 7, project boundaries — complete internally:** identify nested project and workspace roots through the topology workflow.
 - **Step 8, manifest analysis — complete internally:** parse bounded allowlisted manifests into normalized facts behind replaceable backends.
 - **Step 9, topology integration — complete internally:** associate boundary and manifest facts, resolve repository-confined workspace membership, and build direct local dependency edges.
-- **Step 10, public topology contract — complete:** expose a separate validated `repository_topology` schema `0.1` through deterministic CLI text and JSON.
+- **Step 10, public topology contract — complete:** expose a separate validated `repository_topology` schema through deterministic CLI text and JSON.
+- **Scaling profiles — complete:** configure the complete pipeline through explicit `small` or `monorepo` CLI selection and retain an Enterprise per-worker composition profile.
+- **Full local repository discovery — complete:** apply bounded ignore rules, handle large files safely, preserve nested project boundaries, and isolate submodules and nested Git worktrees.
 
 ## 17. Deferred decisions
 
-- user-selectable profile configuration and production-calibrated Enterprise defaults; conservative and large code-level profiles already exist;
+- distributed Enterprise admission, worker fleets, quotas, autoscaling, isolation, and production capacity calibration beyond the implemented per-worker profile;
 - selection criteria and production composition for optional specialized, third-party, generated, or streaming parser backends; the replacement contract already exists;
-- complete `.gitignore` semantics and their configuration policy;
+- optional machine-specific Git ignore sources and an explicit configuration policy;
 - hidden-file policy outside known sensitive paths;
 - binary-file detection;
 - supported marker versions and confidence model;
 - opt-in policy failure thresholds;
-- schema stabilization criteria beyond `0.1`;
+- schema stabilization criteria beyond the current `0.3` reports;
 - treatment of user-mounted remote filesystems;
 - local caching, if any.
 

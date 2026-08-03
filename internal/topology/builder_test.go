@@ -372,6 +372,7 @@ func TestBuilderLimitsAreIndependentOfInputOrder(t *testing.T) {
 	limits.MaxProjects = 1
 	limits.MaxWorkspaces = 1
 	limits.MaxManifests = 1
+	limits.MaxNestedRepositories = 1
 	builder := mustBuilder(t, limits)
 	first := Snapshot{
 		Projects: project.Model{
@@ -548,6 +549,17 @@ func TestBuilderRejectsInvalidSnapshotAndCancellation(t *testing.T) {
 	if !errors.Is(err, ErrInvalidSnapshot) {
 		t.Fatalf("Build() error = %v, want ErrInvalidSnapshot", err)
 	}
+	_, err = builder.Build(t.Context(), Snapshot{NestedRepositories: []string{"../outside"}})
+	if !errors.Is(err, ErrInvalidSnapshot) {
+		t.Fatalf("Build(unsafe nested repository) error = %v, want ErrInvalidSnapshot", err)
+	}
+	_, err = builder.Build(t.Context(), Snapshot{
+		Projects:           project.Model{Projects: []project.Project{{Root: "vendor/library", Kind: project.KindCode}}},
+		NestedRepositories: []string{"vendor"},
+	})
+	if !errors.Is(err, ErrInvalidSnapshot) {
+		t.Fatalf("Build(overlapping project) error = %v, want ErrInvalidSnapshot", err)
+	}
 	_, err = builder.Build(t.Context(), Snapshot{Manifests: manifest.Result{Manifests: []manifest.Manifest{{
 		Path: "go.mod", Format: manifest.FormatGoModule, WorkspaceDeclared: true,
 	}}}})
@@ -559,6 +571,24 @@ func TestBuilderRejectsInvalidSnapshotAndCancellation(t *testing.T) {
 	cancel()
 	if _, err := builder.Build(ctx, Snapshot{}); !errors.Is(err, context.Canceled) {
 		t.Fatalf("Build() error = %v, want context.Canceled", err)
+	}
+}
+
+func TestBuilderRetainsAndBoundsNestedRepositories(t *testing.T) {
+	t.Parallel()
+
+	limits := DefaultLimits()
+	limits.MaxNestedRepositories = 1
+	builder := mustBuilder(t, limits)
+	model, err := builder.Build(t.Context(), Snapshot{
+		NestedRepositories: []string{"vendor/library", "tools/external"},
+	})
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	if !model.Partial || !slices.Equal(model.NestedRepositories, []string{"tools/external"}) ||
+		!hasIssue(model, IssueNestedRepositoryLimit) {
+		t.Fatalf("Build() = %+v, want bounded nested repository model", model)
 	}
 }
 
@@ -595,6 +625,12 @@ func TestBuilderRejectsDuplicateRetainedKeysAtSmallLimits(t *testing.T) {
 				{Path: "package.json", Format: manifest.FormatPHPComposer},
 			}}},
 		},
+		{
+			name: "nested repository",
+			snapshot: Snapshot{NestedRepositories: []string{
+				"vendor/library", "vendor/library",
+			}},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -606,6 +642,7 @@ func TestBuilderRejectsDuplicateRetainedKeysAtSmallLimits(t *testing.T) {
 			slices.Reverse(test.snapshot.Projects.Projects)
 			slices.Reverse(test.snapshot.Projects.Workspaces)
 			slices.Reverse(test.snapshot.Manifests.Manifests)
+			slices.Reverse(test.snapshot.NestedRepositories)
 			if _, err := builder.Build(t.Context(), test.snapshot); !errors.Is(err, ErrInvalidSnapshot) {
 				t.Fatalf("reversed Build() error = %v, want ErrInvalidSnapshot", err)
 			}

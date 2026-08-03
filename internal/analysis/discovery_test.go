@@ -24,6 +24,11 @@ func TestDefaultDiscoveryLimits(t *testing.T) {
 		MaxDepth:               20,
 		MaxIssues:              50,
 		MaxEntriesPerDirectory: 2_500,
+		MaxIgnoreFiles:         100,
+		MaxControlFileBytes:    256 * 1024,
+		MaxIgnorePatternBytes:  4 * 1024,
+		MaxIgnoreRules:         10_000,
+		MaxNestedRepositories:  100,
 		Timeout:                5 * time.Second,
 	}
 
@@ -50,6 +55,42 @@ func TestDiscoveryLimitsRejectInvalidValues(t *testing.T) {
 			name: "directory entries",
 			mutate: func(limits *DiscoveryLimits) {
 				limits.MaxEntriesPerDirectory = 0
+			},
+		},
+		{name: "ignore files", mutate: func(limits *DiscoveryLimits) { limits.MaxIgnoreFiles = 0 }},
+		{
+			name:   "ignore file bytes",
+			mutate: func(limits *DiscoveryLimits) { limits.MaxControlFileBytes = 0 },
+		},
+		{
+			name:   "ignore file byte overflow",
+			mutate: func(limits *DiscoveryLimits) { limits.MaxControlFileBytes = math.MaxInt64 },
+		},
+		{
+			name: "ignore files exceed directories",
+			mutate: func(limits *DiscoveryLimits) {
+				limits.MaxIgnoreFiles = limits.MaxDirectories + 1
+			},
+		},
+		{
+			name:   "ignore pattern bytes",
+			mutate: func(limits *DiscoveryLimits) { limits.MaxIgnorePatternBytes = 0 },
+		},
+		{
+			name: "ignore pattern exceeds file",
+			mutate: func(limits *DiscoveryLimits) {
+				limits.MaxIgnorePatternBytes = int(limits.MaxControlFileBytes) + 1
+			},
+		},
+		{name: "ignore rules", mutate: func(limits *DiscoveryLimits) { limits.MaxIgnoreRules = 0 }},
+		{
+			name:   "nested repositories",
+			mutate: func(limits *DiscoveryLimits) { limits.MaxNestedRepositories = 0 },
+		},
+		{
+			name: "nested repositories exceed directories",
+			mutate: func(limits *DiscoveryLimits) {
+				limits.MaxNestedRepositories = limits.MaxDirectories + 1
 			},
 		},
 		{name: "timeout", mutate: func(limits *DiscoveryLimits) { limits.Timeout = 0 }},
@@ -100,14 +141,12 @@ func TestDiscoverFilesystemReturnsDeterministicInventory(t *testing.T) {
 		t.Fatalf("second discoverFilesystem() error = %v", err)
 	}
 
-	wantDirectories := []string{".", "cmd", "docs", "ignored", "nested"}
+	wantDirectories := []string{".", "cmd", "docs", "nested"}
 	wantFiles := []string{
 		".gitignore",
 		"cmd/main.go",
 		"docs/README.md",
 		"go.mod",
-		"ignored/kept.txt",
-		"nested/app.go",
 	}
 	if !slices.Equal(first.Directories, wantDirectories) {
 		t.Fatalf("Directories = %#v, want %#v", first.Directories, wantDirectories)
@@ -120,6 +159,9 @@ func TestDiscoverFilesystemReturnsDeterministicInventory(t *testing.T) {
 	}
 	if !reflect.DeepEqual(first, second) {
 		t.Fatalf("inventory is not deterministic:\nfirst: %#v\nsecond: %#v", first, second)
+	}
+	if !slices.Equal(first.NestedRepositories, []string{"nested"}) {
+		t.Fatalf("NestedRepositories = %#v, want nested repository boundary", first.NestedRepositories)
 	}
 }
 
@@ -419,8 +461,8 @@ func TestLocalDiscoveryUsesConfinedLocalRoot(t *testing.T) {
 		t.Fatalf("Discover() error = %v", err)
 	}
 
-	wantDirectories := []string{".", "ignored"}
-	wantFiles := []string{".gitignore", "go.mod", "ignored/kept.txt"}
+	wantDirectories := []string{"."}
+	wantFiles := []string{".gitignore", "go.mod"}
 	if !slices.Equal(inventory.Directories, wantDirectories) {
 		t.Fatalf("Directories = %#v, want %#v", inventory.Directories, wantDirectories)
 	}
@@ -432,6 +474,179 @@ func TestLocalDiscoveryUsesConfinedLocalRoot(t *testing.T) {
 	}
 	if inventory.Partial || len(inventory.Issues) != 0 {
 		t.Fatalf("inventory = %#v, want complete without issues", inventory)
+	}
+}
+
+func TestDiscoverFilesystemAppliesRootAndNestedGitignoreRules(t *testing.T) {
+	t.Parallel()
+
+	filesystem := fstest.MapFS{
+		".gitignore":                       &fstest.MapFile{Data: []byte("*.log\n/build/\n/services/*/generated/\n!important.log\n")},
+		"application.log":                  &fstest.MapFile{},
+		"important.log":                    &fstest.MapFile{},
+		"build/ignored.txt":                &fstest.MapFile{},
+		"nested/application.log":           &fstest.MapFile{},
+		"nested/build/kept.txt":            &fstest.MapFile{},
+		"services/api/.gitignore":          &fstest.MapFile{Data: []byte("/tmp/\n!debug.log\n")},
+		"services/api/debug.log":           &fstest.MapFile{},
+		"services/api/generated/cache.bin": &fstest.MapFile{},
+		"services/api/tmp/cache.bin":       &fstest.MapFile{},
+		"services/web/generated/cache.bin": &fstest.MapFile{},
+		"services/web/tmp/kept.txt":        &fstest.MapFile{},
+	}
+
+	inventory, err := discoverFilesystem(t.Context(), filesystem, DefaultDiscoveryLimits())
+	if err != nil {
+		t.Fatalf("discoverFilesystem() error = %v", err)
+	}
+	wantDirectories := []string{
+		".",
+		"nested",
+		"nested/build",
+		"services",
+		"services/api",
+		"services/web",
+		"services/web/tmp",
+	}
+	wantFiles := []string{
+		".gitignore",
+		"important.log",
+		"nested/build/kept.txt",
+		"services/api/.gitignore",
+		"services/api/debug.log",
+		"services/web/tmp/kept.txt",
+	}
+	if !slices.Equal(inventory.Directories, wantDirectories) {
+		t.Fatalf("Directories = %#v, want %#v", inventory.Directories, wantDirectories)
+	}
+	if !slices.Equal(inventory.Files, wantFiles) {
+		t.Fatalf("Files = %#v, want %#v", inventory.Files, wantFiles)
+	}
+	if inventory.Partial || len(inventory.Issues) != 0 {
+		t.Fatalf("inventory = %#v, want complete ignore-aware inventory", inventory)
+	}
+}
+
+func TestDiscoverFilesystemTreatsSubmodulesAsRepositoryBoundaries(t *testing.T) {
+	t.Parallel()
+
+	filesystem := fstest.MapFS{
+		".gitignore":                &fstest.MapFile{Data: []byte("vendor/\n")},
+		".gitmodules":               &fstest.MapFile{Data: []byte("[submodule \"library\"]\n\tpath = vendor/library\n")},
+		"go.mod":                    &fstest.MapFile{Data: []byte("module parent")},
+		"tools/external/.git":       &fstest.MapFile{Data: []byte("gitdir: elsewhere")},
+		"tools/external/Cargo.toml": &fstest.MapFile{Data: []byte("[package]")},
+		"vendor/library/go.mod":     &fstest.MapFile{Data: []byte("module child")},
+	}
+
+	inventory, err := discoverFilesystem(t.Context(), filesystem, DefaultDiscoveryLimits())
+	if err != nil {
+		t.Fatalf("discoverFilesystem() error = %v", err)
+	}
+	wantDirectories := []string{".", "tools", "tools/external", "vendor", "vendor/library"}
+	wantFiles := []string{".gitignore", ".gitmodules", "go.mod"}
+	wantSubmodules := []string{"tools/external", "vendor/library"}
+	if !slices.Equal(inventory.Directories, wantDirectories) ||
+		!slices.Equal(inventory.Files, wantFiles) ||
+		!slices.Equal(inventory.NestedRepositories, wantSubmodules) {
+		t.Fatalf(
+			"inventory = %#v, want directories %#v, files %#v, submodules %#v",
+			inventory,
+			wantDirectories,
+			wantFiles,
+			wantSubmodules,
+		)
+	}
+	if inventory.Partial || len(inventory.Issues) != 0 {
+		t.Fatalf("inventory = %#v, want complete boundary-aware inventory", inventory)
+	}
+}
+
+func TestDiscoverFilesystemHandlesOversizedIgnoreFileConservatively(t *testing.T) {
+	t.Parallel()
+
+	filesystem := fstest.MapFS{
+		".gitignore":       &fstest.MapFile{Data: []byte("ignored/\n")},
+		"ignored/kept.txt": &fstest.MapFile{},
+	}
+	limits := DefaultDiscoveryLimits()
+	limits.MaxControlFileBytes = 4
+
+	inventory, err := discoverFilesystem(t.Context(), filesystem, limits)
+	if err != nil {
+		t.Fatalf("discoverFilesystem() error = %v", err)
+	}
+	if !slices.Equal(inventory.Files, []string{".gitignore", "ignored/kept.txt"}) {
+		t.Fatalf("Files = %#v, want conservative unfiltered inventory", inventory.Files)
+	}
+	assertSingleDiscoveryIssue(
+		t,
+		inventory,
+		DiscoveryIssueIgnoreFileTooLarge,
+		".gitignore",
+	)
+}
+
+func TestDiscoverFilesystemHandlesIgnoreRuleLimitConservatively(t *testing.T) {
+	t.Parallel()
+
+	filesystem := fstest.MapFS{
+		".gitignore":      &fstest.MapFile{Data: []byte("first/\nsecond/\n")},
+		"first/kept.txt":  &fstest.MapFile{},
+		"second/kept.txt": &fstest.MapFile{},
+	}
+	limits := DefaultDiscoveryLimits()
+	limits.MaxIgnoreRules = 1
+
+	inventory, err := discoverFilesystem(t.Context(), filesystem, limits)
+	if err != nil {
+		t.Fatalf("discoverFilesystem() error = %v", err)
+	}
+	wantFiles := []string{".gitignore", "first/kept.txt", "second/kept.txt"}
+	if !slices.Equal(inventory.Files, wantFiles) {
+		t.Fatalf("Files = %#v, want conservative unfiltered inventory", inventory.Files)
+	}
+	assertSingleDiscoveryIssue(t, inventory, DiscoveryIssueIgnoreRuleLimit, ".gitignore")
+}
+
+func TestParseGitmodulesRejectsUnsafePathsAndNormalizesValues(t *testing.T) {
+	t.Parallel()
+
+	result := parseGitmodules([]byte(
+		"[submodule \"safe\"]\npath = services/api\n"+
+			"[submodule \"quoted\"]\npath = \"libraries/shared\" # retained comment\n"+
+			"[submodule \"without-equals\"]\npath tools/helper\n"+
+			"[submodule \"unsafe\"]\npath = ../outside\n",
+	), 10)
+	if !result.invalid || result.truncated {
+		t.Fatal("parseGitmodules() invalid = false, want unsafe declaration reported")
+	}
+	want := []string{"libraries/shared", "services/api", "tools/helper"}
+	if !slices.Equal(result.paths, want) {
+		t.Fatalf("parseGitmodules() paths = %#v, want %#v", result.paths, want)
+	}
+}
+
+func TestParseGitmodulesBoundsRetainedPaths(t *testing.T) {
+	t.Parallel()
+
+	result := parseGitmodules([]byte(
+		"[submodule \"one\"]\npath = one\n"+
+			"[submodule \"two\"]\npath = two\n",
+	), 1)
+	if result.invalid || !result.truncated || !slices.Equal(result.paths, []string{"one"}) {
+		t.Fatalf("parseGitmodules() = %#v, want one retained path and truncation", result)
+	}
+}
+
+func TestParseGitmodulesRejectsInvalidBounds(t *testing.T) {
+	t.Parallel()
+
+	for _, maximum := range []int{0, -1} {
+		result := parseGitmodules([]byte("[submodule \"one\"]\npath = one\n"), maximum)
+		if !result.invalid || len(result.paths) != 0 {
+			t.Fatalf("parseGitmodules(%d) = %#v, want invalid empty result", maximum, result)
+		}
 	}
 }
 

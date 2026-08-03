@@ -15,7 +15,7 @@
 </p>
 
 > [!IMPORTANT]
-> **Project status:** Early implementation. The repository contains two runnable local, read-only workflows. `iatros analyze` performs bounded metadata discovery, technology detection, and five conservative readiness checks. `iatros topology` safely parses allowlisted manifests and reports projects, components, workspaces, and direct dependency relationships. Both commands return deterministic text or JSON. Broader AI, remote-provider, generation, and operational capabilities remain planned, not released.
+> **Project status:** Early implementation. The repository contains two runnable local, read-only workflows. `iatros analyze` performs bounded metadata discovery, technology detection, and five conservative readiness checks. `iatros topology` safely parses allowlisted manifests and reports projects, components, workspaces, and direct dependency relationships. Both commands support explicit `small` and `monorepo` scaling profiles and return deterministic text or JSON. Broader AI, remote-provider, generation, and operational capabilities remain planned, not released.
 
 ## Overview
 
@@ -79,7 +79,8 @@ The intended dependency rules are:
 | Application source and Go module | Root module and initial CLI source present |
 | Runnable CLI, services, and applications | Local analysis and repository-topology CLI available; other runtimes not implemented |
 | Internal project model | Strong filename-based project and workspace boundaries implemented and exposed through topology reports |
-| Internal manifest model | Seven bounded manifest formats, normalized direct declarations, two resource profiles, and replaceable parser backends implemented; conservative profile exposed through topology reports |
+| Scaling profiles | Unified `small`, `monorepo`, and Enterprise per-worker profiles implemented; `small` and `monorepo` selectable in the default CLI |
+| Internal manifest model | Seven bounded manifest formats, normalized direct declarations, unified resource profiles, and replaceable parser backends implemented |
 | Internal topology model | Project/component association, nested and overlapping workspaces, safe member resolution, local dependency edges, and public CLI report mapping implemented |
 | API, SDK, plugins, and extensions | Directory placeholders only |
 | Automated tests and CI workflows | Unit and local integration tests present; CI workflows not yet added |
@@ -124,9 +125,11 @@ go build -o .\bin\iatros.exe .\cmd\iatros
 ./bin/iatros analyze /path/to/repository
 ./bin/iatros analyze --format text /path/to/repository
 ./bin/iatros analyze --format json /path/to/repository
+./bin/iatros analyze --profile monorepo /path/to/monorepo
 ./bin/iatros topology /path/to/repository
 ./bin/iatros topology --format text /path/to/repository
 ./bin/iatros topology --format json /path/to/repository
+./bin/iatros topology --profile monorepo /path/to/monorepo
 ```
 
 Both commands return exit code `0` for complete and explicitly partial reports. Readiness findings do not fail `analyze`. Invalid usage returns `2`, an invalid or inaccessible target returns `3`, and an operational or internal failure returns `1`. Exit code `4` remains reserved for an `analyze` implementation that explicitly reports `not_implemented`; the default CLI does not use that placeholder.
@@ -139,7 +142,7 @@ The first runnable workflow is deliberately narrow and deterministic:
 local directory
       |
       v
-bounded metadata discovery
+bounded ignore-aware discovery
       |
       v
 filename-based technology detection
@@ -153,8 +156,10 @@ versioned report -> text or JSON
 
 The analyzer:
 
-- walks one local root using directory entries and file metadata only;
-- retains at most 2,000 files and 500 directories, traverses at most 20 levels, accepts at most 2,500 entries per directory, retains at most 50 discovery issues, and uses a five-second discovery deadline;
+- walks one local root using directory entries, file metadata, and only bounded `.gitignore` and `.gitmodules` control-file reads;
+- retains at most 2,000 files, 500 directories, 100 ignore files, 10,000 ignore rules of at most 4 KiB each, and 100 nested repository boundaries; traverses at most 20 levels; accepts at most 2,500 entries per directory; retains at most 50 discovery issues; and uses a five-second discovery deadline;
+- applies root and nested Git-style ignore rules with ordered scope, negation, anchoring, directory-only patterns, escaping, wildcards, ranges, and globstars;
+- detects declared submodules and nested Git worktrees, records their roots, and does not attribute their contents to the parent repository;
 - skips VCS metadata plus common generated dependency and tool-state directories (`.gradle`, `.pnpm`, `.terraform`, `.venv`, `.yarn`, `node_modules`, and `venv`), symbolic links, junction-like irregular entries, and other irregular files;
 - returns sorted slash-separated paths relative to the selected root;
 - matches 124 filename-marker rules across 15 categories, including 18 common backend languages, three runtimes, 23 dependency managers, build systems, containers, orchestration, infrastructure as code, configuration management, CI/CD, GitOps, observability, networking, security, secrets, and cloud tooling;
@@ -165,17 +170,18 @@ The analyzer:
 
 The detector reports direct filename evidence only. A marker does not prove that a technology is installed, correctly configured, secure, used in production, or applicable to every project in a monorepository. See the complete [technology catalog](docs/architecture/detection.md) and [readiness rules](docs/architecture/readiness.md).
 
-The [project and workspace boundary model](docs/architecture/project-model.md) recognizes nested code, infrastructure, mixed-project, and workspace roots from the same bounded inventory. The [manifest analysis stage](docs/architecture/manifest-analysis.md) safely parses `go.mod`, `go.work`, `package.json`, `pyproject.toml`, `Cargo.toml`, `composer.json`, and `pom.xml` into normalized direct declarations. Explicit Go, Node.js, and Cargo workspace declarations remain distinguishable from an absent declaration even when they contain no members. The [topology stage](docs/architecture/topology.md) associates both models, resolves repository-confined workspace members, and identifies direct local dependency edges. `iatros topology` exposes those normalized facts through its separate `repository_topology` schema `0.1`; it does not change the established `iatros analyze` schema.
+The [repository discovery contract](docs/architecture/repository-discovery.md) defines ignore behavior, large-file safety, and nested-repository isolation. The [project and workspace boundary model](docs/architecture/project-model.md) recognizes nested code, infrastructure, mixed-project, and workspace roots from the same bounded inventory. The [manifest analysis stage](docs/architecture/manifest-analysis.md) safely parses `go.mod`, `go.work`, `package.json`, `pyproject.toml`, `Cargo.toml`, `composer.json`, and `pom.xml` into normalized direct declarations. Explicit Go, Node.js, and Cargo workspace declarations remain distinguishable from an absent declaration even when they contain no members. The [topology stage](docs/architecture/topology.md) associates both models, resolves repository-confined workspace members, and identifies direct local dependency edges. `iatros topology` exposes those normalized facts through its separate `repository_topology` schema `0.3`.
 
-IATROS uses the same provider-neutral core for small projects and large company monorepositories. Manifest limits are injectable rather than fixed product ceilings, with validated conservative and large-repository profiles. Parser backends are replaceable behind central path, byte, cancellation, normalization, redaction, determinism, and diagnostic contracts, so a measured large-file workload can adopt a specialized streaming or third-party implementation without changing domain semantics.
+IATROS uses the same provider-neutral core for small projects, large company monorepositories, and Enterprise compositions. One [scaling profile](docs/architecture/scaling-profiles.md) configures discovery, evidence, project boundaries, manifest parsing, and topology association together. `small` is the default, `monorepo` is an explicit CLI opt-in, and the validated `enterprise` per-worker profile requires an Enterprise-aware composition. Parser backends remain replaceable behind the same limits, cancellation, normalization, redaction, determinism, and diagnostic contracts.
 
 ### Report contract
 
-Text and JSON are two renderings of the same report. The current JSON schema is `0.1`; its top-level fields are always present:
+Text and JSON are two renderings of the same report. The current JSON schema is `0.3`; its top-level fields are always present:
 
 ```json
 {
-  "schema_version": "0.1",
+  "schema_version": "0.3",
+  "profile": "small",
   "status": "completed",
   "target": {
     "kind": "local_directory",
@@ -184,6 +190,7 @@ Text and JSON are two renderings of the same report. The current JSON schema is 
   "summary": {
     "directories_scanned": 3,
     "files_scanned": 7,
+    "nested_repositories_skipped": 0,
     "ecosystems_detected": 3,
     "findings_total": 0
   },
@@ -224,7 +231,7 @@ Text and JSON are two renderings of the same report. The current JSON schema is 
 
 ### Topology report contract
 
-`iatros topology` uses a separate schema `0.1` with `report_type: repository_topology`. Its always-present top-level fields are `schema_version`, `report_type`, `status`, `target`, `summary`, `projects`, `workspaces`, `dependencies`, and `diagnostics`. Nested collections are arrays even when empty. The summary counts included projects, workspaces, unique manifest components, and direct dependencies by `internal`, `unresolved`, or `ambiguous` resolution.
+`iatros topology` uses a separate schema `0.3` with `report_type: repository_topology`. Its always-present top-level fields are `schema_version`, `report_type`, `profile`, `status`, `target`, `summary`, `projects`, `workspaces`, `dependencies`, `nested_repositories`, and `diagnostics`. Nested collections are arrays even when empty. The summary counts included projects, workspaces, unique manifest components, direct dependencies by `internal`, `unresolved`, or `ambiguous` resolution, and deliberately skipped nested repositories.
 
 The report includes normalized component identity and constraints, an explicit `workspace_declared` flag for each component, workspace containment and declarations, and direct dependency edges. An explicitly empty workspace therefore remains visible without inventing a member. The report does not include raw manifest content, transitive dependency resolution, installed-package state, or proof that a build succeeds. Text and JSON describe the same model. Both omit timestamps and absolute paths and use deterministic, root-relative ordering.
 
@@ -232,9 +239,9 @@ See the complete [repository topology contract](docs/architecture/topology.md#10
 
 ### Current safety boundary
 
-`iatros analyze` remains metadata-only and does not open regular files. `iatros topology` may open only exact registered manifest filenames through a confined root and independent byte limits. Neither command executes repository code or detected tools, installs dependencies, contacts providers, performs DNS or network requests, or modifies the target. Both reject unsafe targets. Root and nested `.gitignore` patterns are not interpreted yet; implementing only part of Git's matching rules could hide relevant evidence.
+`iatros analyze` opens only bounded `.gitignore` and root `.gitmodules` control files; every other regular file remains metadata-only. `iatros topology` additionally opens only exact registered manifest filenames through a confined root and independent byte limits. Neither command executes repository code or detected tools, installs dependencies, contacts providers, performs DNS or network requests, or modifies the target. Both reject unsafe targets and isolate nested Git repositories.
 
-User-selectable or Enterprise-calibrated profiles, full `.gitignore` semantics, remote repositories, AI analysis, vulnerability scanning, artifact generation, and state-changing operations are deferred. The approved behavior and remaining decisions are documented in [PS-0001](docs/product/0001-local-repository-analysis.md).
+Distributed Enterprise installation scaling, optional machine-specific Git exclude sources, remote repositories, AI analysis, vulnerability scanning, artifact generation, and state-changing operations are deferred. The implemented per-repository profiles and the distributed-runtime boundary are documented in the [scaling profile contract](docs/architecture/scaling-profiles.md).
 
 ## Contributing
 
