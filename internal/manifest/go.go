@@ -13,11 +13,11 @@ func (goModParser) Format() Format { return FormatGoModule }
 func (goModParser) Filenames() []string { return []string{"go.mod"} }
 
 func (goModParser) Parse(ctx context.Context, document Document, _ Limits) (Manifest, error) {
-	data, err := readDocument(ctx, document)
+	content, err := readDocument(ctx, document)
 	if err != nil {
 		return Manifest{}, err
 	}
-	file, err := modfile.ParseLax(document.Path, data, nil)
+	file, err := modfile.ParseLax(document.Path, content, nil)
 	if err != nil {
 		return Manifest{}, err
 	}
@@ -55,11 +55,11 @@ func (goWorkParser) Format() Format { return FormatGoWorkspace }
 func (goWorkParser) Filenames() []string { return []string{"go.work"} }
 
 func (goWorkParser) Parse(ctx context.Context, document Document, _ Limits) (Manifest, error) {
-	data, err := readDocument(ctx, document)
+	content, err := readDocument(ctx, document)
 	if err != nil {
 		return Manifest{}, err
 	}
-	file, err := modfile.ParseWork(document.Path, data, nil)
+	file, err := modfile.ParseWork(document.Path, content, nil)
 	if err != nil {
 		return Manifest{}, err
 	}

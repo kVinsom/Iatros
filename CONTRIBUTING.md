@@ -21,6 +21,11 @@ go build ./...
 
 Format every changed Go file with `gofmt` before submitting it.
 
+The repository-wide rules in [`AGENTS.md`](AGENTS.md) are the authoritative coding baseline for both
+human contributors and coding agents. In particular, use semantic names, avoid variable shadowing and
+boolean flag arguments, keep the successful path flush left, make resource ownership explicit, and place
+shared behavior with the capability that owns it.
+
 ## Go imports and comments
 
 IATROS follows the [Go Code Review Comments](https://go.dev/wiki/CodeReviewComments) and [Go Doc Comments](https://go.dev/doc/comment) conventions.

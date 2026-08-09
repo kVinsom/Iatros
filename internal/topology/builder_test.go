@@ -18,7 +18,7 @@ func TestBuilderAssociatesWorkspacesAndDependencies(t *testing.T) {
 	builder := mustBuilder(t, DefaultLimits())
 	model, err := builder.Build(context.Background(), Snapshot{
 		Projects: project.Model{
-			Projects: []project.Project{
+			Projects: []project.Boundary{
 				{Root: ".", Kind: project.KindCode},
 				{Root: "packages/api", Kind: project.KindCode},
 				{Root: "packages/shared", Kind: project.KindCode},
@@ -91,7 +91,7 @@ func TestBuilderDerivesNestedAndOverlappingWorkspaces(t *testing.T) {
 
 	builder := mustBuilder(t, DefaultLimits())
 	model, err := builder.Build(context.Background(), Snapshot{
-		Projects: project.Model{Projects: []project.Project{
+		Projects: project.Model{Projects: []project.Boundary{
 			{Root: ".", Kind: project.KindCode},
 			{Root: "apps", Kind: project.KindCode},
 			{Root: "apps/api", Kind: project.KindCode},
@@ -130,7 +130,7 @@ func TestBuilderNormalizesLocalDependencyIdentities(t *testing.T) {
 
 	builder := mustBuilder(t, DefaultLimits())
 	model, err := builder.Build(context.Background(), Snapshot{
-		Projects: project.Model{Projects: []project.Project{
+		Projects: project.Model{Projects: []project.Boundary{
 			{Root: "python/app", Kind: project.KindCode},
 			{Root: "python/lib", Kind: project.KindCode},
 			{Root: "rust/app", Kind: project.KindCode},
@@ -171,7 +171,7 @@ func TestBuilderReportsAmbiguousDependency(t *testing.T) {
 
 	builder := mustBuilder(t, DefaultLimits())
 	model, err := builder.Build(context.Background(), Snapshot{
-		Projects: project.Model{Projects: []project.Project{
+		Projects: project.Model{Projects: []project.Boundary{
 			{Root: "app", Kind: project.KindCode},
 			{Root: "lib-a", Kind: project.KindCode},
 			{Root: "lib-b", Kind: project.KindCode},
@@ -200,7 +200,7 @@ func TestBuilderHandlesUnsafeUnsupportedAndMissingMembers(t *testing.T) {
 
 	builder := mustBuilder(t, DefaultLimits())
 	model, err := builder.Build(context.Background(), Snapshot{
-		Projects: project.Model{Projects: []project.Project{{Root: ".", Kind: project.KindCode}}},
+		Projects: project.Model{Projects: []project.Boundary{{Root: ".", Kind: project.KindCode}}},
 		Manifests: manifest.Result{Manifests: []manifest.Manifest{{
 			Path: "package.json", Format: manifest.FormatNodePackage,
 			WorkspaceMembers: []string{"../outside", "!packages/private", "missing/*"},
@@ -229,7 +229,7 @@ func TestBuilderKeepsUnmatchedMemberIndeterminateForPartialInput(t *testing.T) {
 	builder := mustBuilder(t, DefaultLimits())
 	model, err := builder.Build(context.Background(), Snapshot{
 		Projects: project.Model{
-			Projects: []project.Project{{Root: ".", Kind: project.KindCode}},
+			Projects: []project.Boundary{{Root: ".", Kind: project.KindCode}},
 			Partial:  true,
 		},
 		Manifests: manifest.Result{Manifests: []manifest.Manifest{{
@@ -252,7 +252,7 @@ func TestBuilderAppliesWorkspaceExclusionsAfterMatches(t *testing.T) {
 
 	builder := mustBuilder(t, DefaultLimits())
 	model, err := builder.Build(context.Background(), Snapshot{
-		Projects: project.Model{Projects: []project.Project{
+		Projects: project.Model{Projects: []project.Boundary{
 			{Root: ".", Kind: project.KindCode},
 			{Root: "crates/private", Kind: project.KindCode},
 			{Root: "crates/public", Kind: project.KindCode},
@@ -282,7 +282,7 @@ func TestBuilderScopesWorkspaceExclusionsToTheirManifest(t *testing.T) {
 
 	builder := mustBuilder(t, DefaultLimits())
 	model, err := builder.Build(t.Context(), Snapshot{
-		Projects: project.Model{Projects: []project.Project{
+		Projects: project.Model{Projects: []project.Boundary{
 			{Root: ".", Kind: project.KindCode},
 			{Root: "packages/node", Kind: project.KindCode},
 			{Root: "packages/rust", Kind: project.KindCode},
@@ -376,7 +376,7 @@ func TestBuilderLimitsAreIndependentOfInputOrder(t *testing.T) {
 	builder := mustBuilder(t, limits)
 	first := Snapshot{
 		Projects: project.Model{
-			Projects: []project.Project{
+			Projects: []project.Boundary{
 				{Root: "z", Kind: project.KindCode},
 				{Root: "a", Kind: project.KindCode},
 			},
@@ -423,7 +423,7 @@ func TestBuilderEnforcesAssociationLimits(t *testing.T) {
 	limits.MaxDependencies = 1
 	builder := mustBuilder(t, limits)
 	model, err := builder.Build(context.Background(), Snapshot{
-		Projects: project.Model{Projects: []project.Project{
+		Projects: project.Model{Projects: []project.Boundary{
 			{Root: ".", Kind: project.KindCode},
 			{Root: "packages/a", Kind: project.KindCode},
 			{Root: "packages/b", Kind: project.KindCode},
@@ -459,7 +459,7 @@ func TestBuilderEnforcesComponentLimit(t *testing.T) {
 	limits.MaxComponentsPerBoundary = 1
 	builder := mustBuilder(t, limits)
 	model, err := builder.Build(t.Context(), Snapshot{
-		Projects: project.Model{Projects: []project.Project{{Root: ".", Kind: project.KindCode}}},
+		Projects: project.Model{Projects: []project.Boundary{{Root: ".", Kind: project.KindCode}}},
 		Manifests: manifest.Result{Manifests: []manifest.Manifest{
 			{Path: "composer.json", Format: manifest.FormatPHPComposer},
 			{Path: "package.json", Format: manifest.FormatNodePackage},
@@ -482,7 +482,7 @@ func TestBuilderFinalizesExclusionsAtDeclarationLimit(t *testing.T) {
 	limits.MaxWorkspaceDeclarations = 2
 	builder := mustBuilder(t, limits)
 	model, err := builder.Build(t.Context(), Snapshot{
-		Projects: project.Model{Projects: []project.Project{
+		Projects: project.Model{Projects: []project.Boundary{
 			{Root: ".", Kind: project.KindCode},
 			{Root: "packages/a", Kind: project.KindCode},
 			{Root: "packages/b", Kind: project.KindCode},
@@ -511,7 +511,7 @@ func TestBuilderBoundsAmbiguousDependencyTargetsLexically(t *testing.T) {
 	limits.MaxTargetsPerDependency = 2
 	builder := mustBuilder(t, limits)
 	model, err := builder.Build(t.Context(), Snapshot{
-		Projects: project.Model{Projects: []project.Project{
+		Projects: project.Model{Projects: []project.Boundary{
 			{Root: "app", Kind: project.KindCode},
 			{Root: "packages/a", Kind: project.KindCode},
 			{Root: "packages/b", Kind: project.KindCode},
@@ -544,7 +544,7 @@ func TestBuilderRejectsInvalidSnapshotAndCancellation(t *testing.T) {
 
 	builder := mustBuilder(t, DefaultLimits())
 	_, err := builder.Build(context.Background(), Snapshot{Projects: project.Model{
-		Projects: []project.Project{{Root: "../outside", Kind: project.KindCode}},
+		Projects: []project.Boundary{{Root: "../outside", Kind: project.KindCode}},
 	}})
 	if !errors.Is(err, ErrInvalidSnapshot) {
 		t.Fatalf("Build() error = %v, want ErrInvalidSnapshot", err)
@@ -554,7 +554,7 @@ func TestBuilderRejectsInvalidSnapshotAndCancellation(t *testing.T) {
 		t.Fatalf("Build(unsafe nested repository) error = %v, want ErrInvalidSnapshot", err)
 	}
 	_, err = builder.Build(t.Context(), Snapshot{
-		Projects:           project.Model{Projects: []project.Project{{Root: "vendor/library", Kind: project.KindCode}}},
+		Projects:           project.Model{Projects: []project.Boundary{{Root: "vendor/library", Kind: project.KindCode}}},
 		NestedRepositories: []string{"vendor"},
 	})
 	if !errors.Is(err, ErrInvalidSnapshot) {
@@ -607,7 +607,7 @@ func TestBuilderRejectsDuplicateRetainedKeysAtSmallLimits(t *testing.T) {
 	}{
 		{
 			name: "project root",
-			snapshot: Snapshot{Projects: project.Model{Projects: []project.Project{
+			snapshot: Snapshot{Projects: project.Model{Projects: []project.Boundary{
 				{Root: ".", Kind: project.KindCode},
 				{Root: ".", Kind: project.KindInfrastructure},
 			}}},
@@ -656,12 +656,12 @@ func TestBuilderIgnoresDuplicateKeysOutsideRetainedLimitDeterministically(t *tes
 	limits := DefaultLimits()
 	limits.MaxProjects = 1
 	builder := mustBuilder(t, limits)
-	projects := []project.Project{
+	projects := []project.Boundary{
 		{Root: "z", Kind: project.KindCode},
 		{Root: "z", Kind: project.KindInfrastructure},
 		{Root: "a", Kind: project.KindCode},
 	}
-	build := func(values []project.Project) Model {
+	build := func(values []project.Boundary) Model {
 		model, err := builder.Build(t.Context(), Snapshot{
 			Projects: project.Model{Projects: values},
 		})
@@ -682,7 +682,7 @@ func TestBuilderIsDeterministicAndDoesNotMutateInputs(t *testing.T) {
 	t.Parallel()
 
 	first := Snapshot{
-		Projects: project.Model{Projects: []project.Project{
+		Projects: project.Model{Projects: []project.Boundary{
 			{Root: "b", Kind: project.KindCode},
 			{Root: "a", Kind: project.KindCode},
 		}},
@@ -692,7 +692,7 @@ func TestBuilderIsDeterministicAndDoesNotMutateInputs(t *testing.T) {
 		}},
 	}
 	second := Snapshot{
-		Projects: project.Model{Projects: []project.Project{
+		Projects: project.Model{Projects: []project.Boundary{
 			{Root: "a", Kind: project.KindCode},
 			{Root: "b", Kind: project.KindCode},
 		}},
@@ -776,7 +776,7 @@ func TestBuilderDeduplicatesDependencyIdentityRoots(t *testing.T) {
 
 	builder := mustBuilder(t, DefaultLimits())
 	model, err := builder.Build(t.Context(), Snapshot{
-		Projects: project.Model{Projects: []project.Project{
+		Projects: project.Model{Projects: []project.Boundary{
 			{Root: "app", Kind: project.KindCode},
 			{Root: "shared", Kind: project.KindCode},
 		}},
@@ -806,7 +806,7 @@ func TestBuilderAcceptsPublicCustomFormatGrammar(t *testing.T) {
 
 	builder := mustBuilder(t, DefaultLimits())
 	model, err := builder.Build(t.Context(), Snapshot{
-		Projects: project.Model{Projects: []project.Project{{Root: ".", Kind: project.KindCode}}},
+		Projects: project.Model{Projects: []project.Boundary{{Root: ".", Kind: project.KindCode}}},
 		Manifests: manifest.Result{Manifests: []manifest.Manifest{{
 			Path: "project.custom", Format: manifest.Format("2custom.v1"), Name: "custom",
 		}}},
@@ -825,7 +825,7 @@ func TestBuilderRetainsExplicitEmptyWorkspace(t *testing.T) {
 
 	builder := mustBuilder(t, DefaultLimits())
 	model, err := builder.Build(t.Context(), Snapshot{
-		Projects: project.Model{Projects: []project.Project{{Root: ".", Kind: project.KindCode}}},
+		Projects: project.Model{Projects: []project.Boundary{{Root: ".", Kind: project.KindCode}}},
 		Manifests: manifest.Result{Manifests: []manifest.Manifest{{
 			Path: "Cargo.toml", Format: manifest.FormatRustPackage,
 			WorkspaceDeclared: true,
@@ -875,10 +875,10 @@ func TestManifestValidationHonorsCancellationWithinLargeCollections(t *testing.T
 
 func BenchmarkBuilder(b *testing.B) {
 	const projectCount = 2_000
-	projects := make([]project.Project, 0, projectCount)
+	projects := make([]project.Boundary, 0, projectCount)
 	for index := range projectCount {
 		root := "services/service-" + strconv.Itoa(index)
-		projects = append(projects, project.Project{Root: root, Kind: project.KindCode})
+		projects = append(projects, project.Boundary{Root: root, Kind: project.KindCode})
 	}
 	builder, err := NewBuilder(DefaultLimits())
 	if err != nil {

@@ -2,123 +2,136 @@ package topology
 
 import (
 	"context"
-	"path"
 	"slices"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/kVinsom/Iatros/internal/manifest"
 	"github.com/kVinsom/Iatros/internal/project"
+	"github.com/kVinsom/Iatros/internal/repositorypath"
 )
 
 func validateInputs(
 	ctx context.Context,
-	projects []project.Project,
+	projects []project.Boundary,
 	workspaces []project.Workspace,
 	manifests []manifest.Manifest,
 	limits Limits,
 ) error {
 	seenProjects := make(map[string]struct{}, len(projects))
-	for index, value := range projects {
+	for index, projectBoundary := range projects {
 		if err := periodicContextError(ctx, index); err != nil {
 			return err
 		}
-		if !validDirectory(value.Root) || !validKind(value.Kind) ||
-			(value.WorkspaceRoot != "" && !validDirectory(value.WorkspaceRoot)) {
+		if !validDirectory(projectBoundary.Root) || !validKind(projectBoundary.Kind) ||
+			(projectBoundary.WorkspaceRoot != "" &&
+				!validDirectory(projectBoundary.WorkspaceRoot)) {
 			return ErrInvalidSnapshot
 		}
-		if err := validateProjectMarkers(ctx, value.Markers, limits.MaxValueBytes); err != nil {
+		if err := validateProjectMarkers(
+			ctx,
+			projectBoundary.Markers,
+			limits.MaxValueBytes,
+		); err != nil {
 			return err
 		}
-		if _, exists := seenProjects[value.Root]; exists {
+		if _, exists := seenProjects[projectBoundary.Root]; exists {
 			return ErrInvalidSnapshot
 		}
-		seenProjects[value.Root] = struct{}{}
+		seenProjects[projectBoundary.Root] = struct{}{}
 	}
 
 	seenWorkspaces := make(map[string]struct{}, len(workspaces))
-	for index, value := range workspaces {
+	for index, workspace := range workspaces {
 		if err := periodicContextError(ctx, index); err != nil {
 			return err
 		}
-		if !validDirectory(value.Root) {
+		if !validDirectory(workspace.Root) {
 			return ErrInvalidSnapshot
 		}
-		if err := validateProjectMarkers(ctx, value.Markers, limits.MaxValueBytes); err != nil {
+		if err := validateProjectMarkers(ctx, workspace.Markers, limits.MaxValueBytes); err != nil {
 			return err
 		}
-		if _, exists := seenWorkspaces[value.Root]; exists {
+		if _, exists := seenWorkspaces[workspace.Root]; exists {
 			return ErrInvalidSnapshot
 		}
-		seenWorkspaces[value.Root] = struct{}{}
+		seenWorkspaces[workspace.Root] = struct{}{}
 	}
 
 	seenManifests := make(map[string]struct{}, len(manifests))
-	for index, value := range manifests {
+	for index, manifestDocument := range manifests {
 		if err := periodicContextError(ctx, index); err != nil {
 			return err
 		}
-		if err := validateManifest(ctx, value, limits.MaxValueBytes); err != nil {
+		if err := validateManifest(ctx, manifestDocument, limits.MaxValueBytes); err != nil {
 			return err
 		}
-		if _, exists := seenManifests[value.Path]; exists {
+		if _, exists := seenManifests[manifestDocument.Path]; exists {
 			return ErrInvalidSnapshot
 		}
-		seenManifests[value.Path] = struct{}{}
+		seenManifests[manifestDocument.Path] = struct{}{}
 	}
 	return ctx.Err()
 }
 
-func validateManifest(ctx context.Context, value manifest.Manifest, maximum int) error {
-	if !validFile(value.Path) || !validIdentifier(string(value.Format)) ||
-		!validManifestWorkspaceState(value) ||
-		!validOptionalText(value.Name, maximum) || !validOptionalText(value.Version, maximum) ||
-		!validOptionalText(value.Module, maximum) {
+func validateManifest(
+	ctx context.Context,
+	manifestDocument manifest.Manifest,
+	maximumBytes int,
+) error {
+	if !validFile(manifestDocument.Path) ||
+		!validIdentifier(string(manifestDocument.Format)) ||
+		!validManifestWorkspaceState(manifestDocument) ||
+		!validOptionalText(manifestDocument.Name, maximumBytes) ||
+		!validOptionalText(manifestDocument.Version, maximumBytes) ||
+		!validOptionalText(manifestDocument.Module, maximumBytes) {
 		return ErrInvalidSnapshot
 	}
-	for index, dependency := range value.Dependencies {
+	for index, dependency := range manifestDocument.Dependencies {
 		if err := periodicContextError(ctx, index); err != nil {
 			return err
 		}
-		if !validText(dependency.Name, maximum) ||
-			!validOptionalText(dependency.Constraint, maximum) || !validScope(dependency.Scope) {
+		if !validText(dependency.Name, maximumBytes) ||
+			!validOptionalText(dependency.Constraint, maximumBytes) ||
+			!validScope(dependency.Scope) {
 			return ErrInvalidSnapshot
 		}
 	}
-	for index, constraint := range value.Constraints {
+	for index, constraint := range manifestDocument.Constraints {
 		if err := periodicContextError(ctx, index); err != nil {
 			return err
 		}
-		if !validText(constraint.Name, maximum) ||
-			!validOptionalText(constraint.Value, maximum) || !validConstraintScope(constraint.Scope) {
+		if !validText(constraint.Name, maximumBytes) ||
+			!validOptionalText(constraint.Value, maximumBytes) ||
+			!validConstraintScope(constraint.Scope) {
 			return ErrInvalidSnapshot
 		}
 	}
-	for index, member := range value.WorkspaceMembers {
+	for index, workspaceMember := range manifestDocument.WorkspaceMembers {
 		if err := periodicContextError(ctx, index); err != nil {
 			return err
 		}
-		if !validText(member, maximum) {
+		if !validText(workspaceMember, maximumBytes) {
 			return ErrInvalidSnapshot
 		}
 	}
-	for index, excluded := range value.WorkspaceExcludes {
+	for index, workspaceExclusion := range manifestDocument.WorkspaceExcludes {
 		if err := periodicContextError(ctx, index); err != nil {
 			return err
 		}
-		if !validText(excluded, maximum) {
+		if !validText(workspaceExclusion, maximumBytes) {
 			return ErrInvalidSnapshot
 		}
 	}
 	return ctx.Err()
 }
 
-func validManifestWorkspaceState(value manifest.Manifest) bool {
-	switch value.Format {
+func validManifestWorkspaceState(manifestDocument manifest.Manifest) bool {
+	switch manifestDocument.Format {
 	case manifest.FormatGoWorkspace:
-		return value.WorkspaceDeclared
+		return manifestDocument.WorkspaceDeclared
 	case manifest.FormatGoModule, manifest.FormatPythonProject, manifest.FormatPHPComposer:
-		return !value.WorkspaceDeclared
+		return !manifestDocument.WorkspaceDeclared
 	default:
 		return true
 	}
@@ -182,33 +195,28 @@ func validConstraintScope(scope manifest.Scope) bool {
 	}
 }
 
-func validDirectory(value string) bool {
-	return value == "." || validFile(value)
+func validDirectory(directoryPath string) bool {
+	return repositorypath.IsValidDirectory(directoryPath)
 }
 
-func validFile(value string) bool {
-	if !validText(value, len(value)) || strings.Contains(value, "\\") || path.IsAbs(value) ||
-		looksLikeWindowsPath(value) {
+func validFile(filePath string) bool {
+	return repositorypath.IsValidFile(filePath)
+}
+
+func validIssuePath(issuePath string) bool {
+	return repositorypath.IsValidDirectory(issuePath)
+}
+
+func validOptionalText(text string, maximumBytes int) bool {
+	return text == "" || validText(text, maximumBytes)
+}
+
+func validText(text string, maximumBytes int) bool {
+	if text == "" || len(text) > maximumBytes || !utf8.ValidString(text) ||
+		strings.TrimSpace(text) != text {
 		return false
 	}
-	cleaned := path.Clean(value)
-	return cleaned == value && cleaned != "." && cleaned != ".." && !strings.HasPrefix(cleaned, "../")
-}
-
-func validIssuePath(value string) bool {
-	return value == "." || validFile(value)
-}
-
-func validOptionalText(value string, maximum int) bool {
-	return value == "" || validText(value, maximum)
-}
-
-func validText(value string, maximum int) bool {
-	if value == "" || len(value) > maximum || !utf8.ValidString(value) ||
-		strings.TrimSpace(value) != value {
-		return false
-	}
-	for _, character := range value {
+	for _, character := range text {
 		if character < 0x20 || (character >= 0x7f && character <= 0x9f) {
 			return false
 		}
@@ -216,14 +224,14 @@ func validText(value string, maximum int) bool {
 	return true
 }
 
-func validIdentifier(value string) bool {
-	if value == "" || !lowerAlphaNumeric(value[0]) ||
-		!lowerAlphaNumeric(value[len(value)-1]) {
+func validIdentifier(identifier string) bool {
+	if identifier == "" || !lowerAlphaNumeric(identifier[0]) ||
+		!lowerAlphaNumeric(identifier[len(identifier)-1]) {
 		return false
 	}
 	previousSeparator := false
-	for index := range len(value) {
-		character := value[index]
+	for index := range len(identifier) {
+		character := identifier[index]
 		if lowerAlphaNumeric(character) {
 			previousSeparator = false
 			continue
@@ -236,15 +244,16 @@ func validIdentifier(value string) bool {
 	return true
 }
 
-func lowerAlphaNumeric(value byte) bool {
-	return (value >= 'a' && value <= 'z') || (value >= '0' && value <= '9')
+func lowerAlphaNumeric(character byte) bool {
+	return (character >= 'a' && character <= 'z') ||
+		(character >= '0' && character <= '9')
 }
 
-func validIssueCode(value string) bool {
-	if value == "" || value[0] < 'A' || value[0] > 'Z' {
+func validIssueCode(code string) bool {
+	if code == "" || code[0] < 'A' || code[0] > 'Z' {
 		return false
 	}
-	for _, character := range value {
+	for _, character := range code {
 		if (character < 'A' || character > 'Z') && (character < '0' || character > '9') && character != '_' {
 			return false
 		}
@@ -252,21 +261,16 @@ func validIssueCode(value string) bool {
 	return true
 }
 
-func looksLikeWindowsPath(value string) bool {
-	return len(value) >= 2 && ((value[0] >= 'A' && value[0] <= 'Z') ||
-		(value[0] >= 'a' && value[0] <= 'z')) && value[1] == ':'
-}
-
-func copyMarkers(values []project.Marker) []Marker {
-	markers := make([]Marker, 0, len(values))
-	for _, value := range values {
-		evidence := slices.Clone(value.Evidence)
+func copyMarkers(sourceMarkers []project.Marker) []Marker {
+	markers := make([]Marker, 0, len(sourceMarkers))
+	for _, sourceMarker := range sourceMarkers {
+		evidence := slices.Clone(sourceMarker.Evidence)
 		slices.Sort(evidence)
 		evidence = slices.Compact(evidence)
 		markers = append(markers, Marker{
-			ID:                value.ID,
+			ID:                sourceMarker.ID,
 			Evidence:          evidence,
-			EvidenceTruncated: value.EvidenceTruncated,
+			EvidenceTruncated: sourceMarker.EvidenceTruncated,
 		})
 	}
 	slices.SortFunc(markers, func(left, right Marker) int {
@@ -278,9 +282,9 @@ func copyMarkers(values []project.Marker) []Marker {
 	})
 }
 
-func componentFromManifest(value manifest.Manifest) Component {
-	constraints := make([]Constraint, 0, len(value.Constraints))
-	for _, constraint := range value.Constraints {
+func componentFromManifest(manifestDocument manifest.Manifest) Component {
+	constraints := make([]Constraint, 0, len(manifestDocument.Constraints))
+	for _, constraint := range manifestDocument.Constraints {
 		constraints = append(constraints, Constraint{
 			Name: constraint.Name, Value: constraint.Value, Scope: string(constraint.Scope),
 		})
@@ -288,17 +292,17 @@ func componentFromManifest(value manifest.Manifest) Component {
 	slices.SortFunc(constraints, compareConstraints)
 	constraints = slices.Compact(constraints)
 	return Component{
-		ManifestPath:               value.Path,
-		Format:                     string(value.Format),
-		Name:                       value.Name,
-		Version:                    value.Version,
-		Module:                     value.Module,
+		ManifestPath:               manifestDocument.Path,
+		Format:                     string(manifestDocument.Format),
+		Name:                       manifestDocument.Name,
+		Version:                    manifestDocument.Version,
+		Module:                     manifestDocument.Module,
 		Constraints:                constraints,
-		WorkspaceDeclared:          value.WorkspaceDeclared,
-		DependenciesTruncated:      value.DependenciesTruncated,
-		ConstraintsTruncated:       value.ConstraintsTruncated,
-		WorkspaceMembersTruncated:  value.WorkspaceMembersTruncated,
-		WorkspaceExcludesTruncated: value.WorkspaceExcludesTruncated,
+		WorkspaceDeclared:          manifestDocument.WorkspaceDeclared,
+		DependenciesTruncated:      manifestDocument.DependenciesTruncated,
+		ConstraintsTruncated:       manifestDocument.ConstraintsTruncated,
+		WorkspaceMembersTruncated:  manifestDocument.WorkspaceMembersTruncated,
+		WorkspaceExcludesTruncated: manifestDocument.WorkspaceExcludesTruncated,
 	}
 }
 
@@ -317,39 +321,39 @@ func compareComponents(left, right Component) int {
 }
 
 func finalizeProjects(states map[string]*projectState) []Project {
-	values := make([]Project, 0, len(states))
+	projects := make([]Project, 0, len(states))
 	for _, state := range states {
-		slices.Sort(state.value.WorkspaceRoots)
-		state.value.WorkspaceRoots = slices.Compact(state.value.WorkspaceRoots)
-		slices.SortFunc(state.value.Components, compareComponents)
-		state.value.Components = slices.CompactFunc(state.value.Components, equalComponents)
-		values = append(values, state.value)
+		slices.Sort(state.project.WorkspaceRoots)
+		state.project.WorkspaceRoots = slices.Compact(state.project.WorkspaceRoots)
+		slices.SortFunc(state.project.Components, compareComponents)
+		state.project.Components = slices.CompactFunc(state.project.Components, equalComponents)
+		projects = append(projects, state.project)
 	}
-	slices.SortFunc(values, func(left, right Project) int {
+	slices.SortFunc(projects, func(left, right Project) int {
 		return strings.Compare(left.Root, right.Root)
 	})
-	return values
+	return projects
 }
 
 func finalizeWorkspaces(states map[string]*workspaceState) []Workspace {
-	values := make([]Workspace, 0, len(states))
+	workspaces := make([]Workspace, 0, len(states))
 	for _, state := range states {
-		slices.SortFunc(state.value.Components, compareComponents)
-		state.value.Components = slices.CompactFunc(state.value.Components, equalComponents)
-		slices.Sort(state.value.ContainedProjects)
-		state.value.ContainedProjects = slices.Compact(state.value.ContainedProjects)
-		slices.Sort(state.value.DeclaredProjects)
-		state.value.DeclaredProjects = slices.Compact(state.value.DeclaredProjects)
-		slices.Sort(state.value.ExcludedProjects)
-		state.value.ExcludedProjects = slices.Compact(state.value.ExcludedProjects)
-		slices.SortFunc(state.value.Declarations, compareDeclarations)
-		state.value.Declarations = slices.CompactFunc(state.value.Declarations, equalDeclarations)
-		values = append(values, state.value)
+		slices.SortFunc(state.workspace.Components, compareComponents)
+		state.workspace.Components = slices.CompactFunc(state.workspace.Components, equalComponents)
+		slices.Sort(state.workspace.ContainedProjects)
+		state.workspace.ContainedProjects = slices.Compact(state.workspace.ContainedProjects)
+		slices.Sort(state.workspace.DeclaredProjects)
+		state.workspace.DeclaredProjects = slices.Compact(state.workspace.DeclaredProjects)
+		slices.Sort(state.workspace.ExcludedProjects)
+		state.workspace.ExcludedProjects = slices.Compact(state.workspace.ExcludedProjects)
+		slices.SortFunc(state.workspace.Declarations, compareDeclarations)
+		state.workspace.Declarations = slices.CompactFunc(state.workspace.Declarations, equalDeclarations)
+		workspaces = append(workspaces, state.workspace)
 	}
-	slices.SortFunc(values, func(left, right Workspace) int {
+	slices.SortFunc(workspaces, func(left, right Workspace) int {
 		return strings.Compare(left.Root, right.Root)
 	})
-	return values
+	return workspaces
 }
 
 func compareDeclarations(left, right WorkspaceDeclaration) int {

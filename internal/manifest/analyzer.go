@@ -100,10 +100,10 @@ func parserIsNil(parser Parser) bool {
 	if parser == nil {
 		return true
 	}
-	value := reflect.ValueOf(parser)
-	switch value.Kind() {
+	reflectedParser := reflect.ValueOf(parser)
+	switch reflectedParser.Kind() {
 	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return value.IsNil()
+		return reflectedParser.IsNil()
 	default:
 		return false
 	}
@@ -132,7 +132,7 @@ func (a Analyzer) Analyze(ctx context.Context, source Source, snapshot Snapshot)
 
 	files := slices.Clone(snapshot.Files)
 	for _, file := range files {
-		if !validRepositoryPath(file) {
+		if !repositorypath.IsValidFile(file) {
 			return result, ErrInvalidSnapshot
 		}
 	}
@@ -210,22 +210,17 @@ func (a Analyzer) parse(
 		return Manifest{}, 0, &issue, err
 	}
 	if reader == nil || size < 0 {
-		if reader != nil {
-			_ = reader.Close()
-		}
 		issue := Issue{IssueReadFailed, candidate.path, "the manifest source returned invalid metadata"}
-		return Manifest{}, 0, &issue, ErrInvalidSource
+		return Manifest{}, 0, &issue, closeManifestReader(reader, ErrInvalidSource)
 	}
 
 	if size > a.limits.MaxFileBytes {
-		_ = reader.Close()
 		issue := Issue{IssueFileTooLarge, candidate.path, "the manifest exceeded the configured per-file byte limit"}
-		return Manifest{}, 0, &issue, errInvalidParserResult
+		return Manifest{}, 0, &issue, closeManifestReader(reader, errInvalidParserResult)
 	}
 	if size > a.limits.MaxTotalBytes-totalBytes {
-		_ = reader.Close()
 		issue := Issue{IssueTotalBytesLimit, candidate.path, "remaining manifests were omitted by the configured total byte limit"}
-		return Manifest{}, 0, &issue, errInvalidParserResult
+		return Manifest{}, 0, &issue, closeManifestReader(reader, errInvalidParserResult)
 	}
 
 	allowed := min(a.limits.MaxFileBytes, a.limits.MaxTotalBytes-totalBytes)
@@ -266,6 +261,13 @@ func (a Analyzer) parse(
 	return manifest, counter.read, nil, nil
 }
 
+func closeManifestReader(reader io.Closer, operationErr error) error {
+	if reader == nil {
+		return operationErr
+	}
+	return errors.Join(operationErr, reader.Close())
+}
+
 type manifestCandidate struct {
 	path   string
 	format Format
@@ -297,13 +299,14 @@ func defaultFormatsByFilename() map[string]Format {
 }
 
 func validFormat(format Format) bool {
-	value := string(format)
-	if value == "" || !lowerAlphaNumeric(value[0]) || !lowerAlphaNumeric(value[len(value)-1]) {
+	formatName := string(format)
+	if formatName == "" || !lowerAlphaNumeric(formatName[0]) ||
+		!lowerAlphaNumeric(formatName[len(formatName)-1]) {
 		return false
 	}
 	previousSeparator := false
-	for index := range len(value) {
-		character := value[index]
+	for index := range len(formatName) {
+		character := formatName[index]
 		if lowerAlphaNumeric(character) {
 			previousSeparator = false
 			continue
@@ -322,7 +325,7 @@ func lowerAlphaNumeric(character byte) bool {
 }
 
 func validManifestFilename(filename string) bool {
-	return validValue(filename, 255) && path.Base(filename) == filename &&
+	return validManifestText(filename, 255) && path.Base(filename) == filename &&
 		filename != "." && filename != ".." && !strings.Contains(filename, "\\")
 }
 
@@ -330,30 +333,17 @@ func ignoredManifestPath(file string) bool {
 	return repositorypath.IsExcludedFile(file)
 }
 
-func validRepositoryPath(value string) bool {
-	if !validValue(value, len(value)) || strings.Contains(value, "\\") || path.IsAbs(value) ||
-		looksLikeWindowsPath(value) {
+func validManifestText(text string, maximumBytes int) bool {
+	if text == "" || len(text) > maximumBytes || !utf8.ValidString(text) ||
+		strings.TrimSpace(text) != text {
 		return false
 	}
-	cleaned := path.Clean(value)
-	return cleaned == value && cleaned != "." && cleaned != ".." && !strings.HasPrefix(cleaned, "../")
-}
-
-func validValue(value string, maxBytes int) bool {
-	if value == "" || len(value) > maxBytes || !utf8.ValidString(value) || strings.TrimSpace(value) != value {
-		return false
-	}
-	for _, character := range value {
+	for _, character := range text {
 		if character < 0x20 || (character >= 0x7f && character <= 0x9f) {
 			return false
 		}
 	}
 	return true
-}
-
-func looksLikeWindowsPath(value string) bool {
-	return len(value) >= 2 && ((value[0] >= 'A' && value[0] <= 'Z') ||
-		(value[0] >= 'a' && value[0] <= 'z')) && value[1] == ':'
 }
 
 type contextReader struct {

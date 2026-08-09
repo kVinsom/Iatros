@@ -259,22 +259,22 @@ func writeTopologyDeclarations(
 func writeTopologyStringList(
 	output *textWriter,
 	label string,
-	itemIndent string,
-	values []string,
+	entryIndent string,
+	entries []string,
 ) {
-	if len(values) == 0 {
+	if len(entries) == 0 {
 		output.printf("%s: none\n", label)
 		return
 	}
 	output.printf("%s:\n", label)
-	for _, value := range values {
-		output.printf("%s- %s\n", itemIndent, value)
+	for _, entry := range entries {
+		output.printf("%s- %s\n", entryIndent, entry)
 	}
 }
 
-func optionalText(value string) string {
-	if value == "" {
+func optionalText(text string) string {
+	if text == "" {
 		return "none"
 	}
-	return value
+	return text
 }

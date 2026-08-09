@@ -91,14 +91,12 @@ func openLocalRoot(path string) (*os.Root, error) {
 	}
 	openedInfo, statErr := root.Stat(".")
 	if statErr != nil {
-		_ = root.Close()
-		return nil, classifyTargetAccessError(statErr)
+		return nil, errors.Join(classifyTargetAccessError(statErr), root.Close())
 	}
 	// Comparing identities detects target replacement between metadata validation
 	// and directory-handle acquisition.
 	if !os.SameFile(info, openedInfo) {
-		_ = root.Close()
-		return nil, ErrInvalidTarget
+		return nil, errors.Join(ErrInvalidTarget, root.Close())
 	}
 
 	return root, nil

@@ -88,95 +88,134 @@ func (w *discoveryWalker) walk(
 		if ignoredDiscoveryEntry(entry.Name()) {
 			continue
 		}
-
-		relativePath := path.Join(directory, entry.Name())
-		if !validRelativePath(relativePath) {
-			w.addIssue(DiscoveryIssue{
-				Code:    DiscoveryIssueUnsafePath,
-				Path:    ".",
-				Message: "An unsafe path was skipped.",
-			})
-			continue
+		if err := w.visitEntry(ctx, directory, depth, rules, entry); err != nil {
+			return err
 		}
-		if entry.Type()&(fs.ModeSymlink|fs.ModeIrregular) != 0 {
-			continue
-		}
-
-		info, err := entry.Info()
-		if err != nil {
-			w.addIssue(unreadablePathIssue(relativePath))
-			continue
-		}
-		mode := info.Mode()
-		if mode&(fs.ModeSymlink|fs.ModeIrregular) != 0 {
-			continue
-		}
-
-		switch {
-		case mode.IsDir():
-			declaredSubmodule := w.isDeclaredSubmodule(relativePath)
-			if !declaredSubmodule && !w.containsDeclaredSubmodule(relativePath) {
-				ignored, err := repositoryignore.IgnoredContext(ctx, rules, relativePath, true)
-				if err != nil {
-					return err
-				}
-				if ignored {
-					continue
-				}
-			}
-			if depth+1 > w.limits.MaxDepth {
-				w.addIssue(DiscoveryIssue{
-					Code:    DiscoveryIssueDepthLimit,
-					Path:    relativePath,
-					Message: "The directory was skipped at the configured depth limit.",
-				})
-				continue
-			}
-			if len(w.inventory.Directories) >= w.limits.MaxDirectories {
-				w.addIssue(DiscoveryIssue{
-					Code:    DiscoveryIssueDirectoryLimit,
-					Path:    relativePath,
-					Message: "The directory limit was reached; remaining entries were skipped.",
-				})
-				w.stopped = true
-				return nil
-			}
-
-			w.inventory.Directories = append(w.inventory.Directories, relativePath)
-			if declaredSubmodule {
-				w.addSubmodule(relativePath)
-				continue
-			}
-			if err := w.walk(ctx, relativePath, depth+1, rules); err != nil {
-				return err
-			}
-			if w.stopped {
-				return nil
-			}
-		case mode.IsRegular():
-			if !repositoryControlFile(entry.Name()) {
-				ignored, err := repositoryignore.IgnoredContext(ctx, rules, relativePath, false)
-				if err != nil {
-					return err
-				}
-				if ignored {
-					continue
-				}
-			}
-			if len(w.inventory.Files) >= w.limits.MaxFiles {
-				w.addIssue(DiscoveryIssue{
-					Code:    DiscoveryIssueFileLimit,
-					Path:    relativePath,
-					Message: "The file limit was reached; remaining entries were skipped.",
-				})
-				w.stopped = true
-				return nil
-			}
-			w.inventory.Files = append(w.inventory.Files, relativePath)
+		if w.stopped {
+			return nil
 		}
 	}
 
 	return ctx.Err()
+}
+
+func (w *discoveryWalker) visitEntry(
+	ctx context.Context,
+	directory string,
+	depth int,
+	rules []repositoryignore.Rule,
+	entry fs.DirEntry,
+) error {
+	relativePath := path.Join(directory, entry.Name())
+	if !validRelativePath(relativePath) {
+		w.addIssue(DiscoveryIssue{
+			Code:    DiscoveryIssueUnsafePath,
+			Path:    ".",
+			Message: "An unsafe path was skipped.",
+		})
+		return nil
+	}
+	if entry.Type()&(fs.ModeSymlink|fs.ModeIrregular) != 0 {
+		return nil
+	}
+
+	fileInfo, err := entry.Info()
+	if err != nil {
+		w.addIssue(unreadablePathIssue(relativePath))
+		return nil
+	}
+	fileMode := fileInfo.Mode()
+	if fileMode&(fs.ModeSymlink|fs.ModeIrregular) != 0 {
+		return nil
+	}
+	if fileMode.IsDir() {
+		return w.visitDirectory(ctx, relativePath, depth, rules)
+	}
+	if fileMode.IsRegular() {
+		return w.visitFile(ctx, entry.Name(), relativePath, rules)
+	}
+	return nil
+}
+
+func (w *discoveryWalker) visitDirectory(
+	ctx context.Context,
+	directoryPath string,
+	parentDepth int,
+	rules []repositoryignore.Rule,
+) error {
+	isDeclaredSubmodule := w.isDeclaredSubmodule(directoryPath)
+	if !isDeclaredSubmodule && !w.containsDeclaredSubmodule(directoryPath) {
+		isIgnored, err := repositoryignore.IgnoredContext(
+			ctx,
+			rules,
+			directoryPath,
+			repositoryignore.EntryDirectory,
+		)
+		if err != nil {
+			return err
+		}
+		if isIgnored {
+			return nil
+		}
+	}
+
+	if parentDepth+1 > w.limits.MaxDepth {
+		w.addIssue(DiscoveryIssue{
+			Code:    DiscoveryIssueDepthLimit,
+			Path:    directoryPath,
+			Message: "The directory was skipped at the configured depth limit.",
+		})
+		return nil
+	}
+	if len(w.inventory.Directories) >= w.limits.MaxDirectories {
+		w.addIssue(DiscoveryIssue{
+			Code:    DiscoveryIssueDirectoryLimit,
+			Path:    directoryPath,
+			Message: "The directory limit was reached; remaining entries were skipped.",
+		})
+		w.stopped = true
+		return nil
+	}
+
+	w.inventory.Directories = append(w.inventory.Directories, directoryPath)
+	if isDeclaredSubmodule {
+		w.addSubmodule(directoryPath)
+		return nil
+	}
+	return w.walk(ctx, directoryPath, parentDepth+1, rules)
+}
+
+func (w *discoveryWalker) visitFile(
+	ctx context.Context,
+	filename string,
+	filePath string,
+	rules []repositoryignore.Rule,
+) error {
+	if !repositoryControlFile(filename) {
+		isIgnored, err := repositoryignore.IgnoredContext(
+			ctx,
+			rules,
+			filePath,
+			repositoryignore.EntryFile,
+		)
+		if err != nil {
+			return err
+		}
+		if isIgnored {
+			return nil
+		}
+	}
+	if len(w.inventory.Files) >= w.limits.MaxFiles {
+		w.addIssue(DiscoveryIssue{
+			Code:    DiscoveryIssueFileLimit,
+			Path:    filePath,
+			Message: "The file limit was reached; remaining entries were skipped.",
+		})
+		w.stopped = true
+		return nil
+	}
+	w.inventory.Files = append(w.inventory.Files, filePath)
+	return nil
 }
 
 func (w *discoveryWalker) readDirectory(directory string) ([]fs.DirEntry, error) {

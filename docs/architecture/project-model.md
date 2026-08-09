@@ -24,7 +24,7 @@ bounded root-relative file inventory
        internal/project.Detector
                  |
                  v
-  projects + workspaces + partial state
+  boundaries + workspaces + partial state
                  |
                  v
  internal topology association (implemented)
@@ -37,12 +37,18 @@ This stage deliberately remains independent from `internal/analysis`, Cobra, JSO
 
 ## 2. Model
 
-The internal model contains:
+The boundary-detection model contains:
 
 - `Workspace`: a root coordinated by a strong workspace marker;
-- `Project`: a root established by a strong code or infrastructure marker;
+- `Boundary`: a root established by a strong code or infrastructure marker;
 - `Marker`: a stable marker ID, sorted root-relative evidence, and an evidence-truncation flag;
 - `Partial`: a copy of the discovery completeness state.
+
+`internal/project` also owns the separate schema-versioned `Project` contract described in
+[PS-0002](../product/0002-core-domain-contracts.md). `Boundary` represents repository evidence used by
+topology analysis; `Project` represents the canonical operational project, including environments,
+services, dependencies, and configuration. Keeping distinct names prevents discovery evidence from being
+mistaken for the richer canonical contract while preserving one provider-neutral core package.
 
 Every project is classified from direct markers:
 
@@ -52,7 +58,9 @@ Every project is classified from direct markers:
 | `infrastructure` | At least one strong infrastructure manifest exists at the root. |
 | `mixed` | Both marker classes exist at the same root. |
 
-`Root` is `.` for the selected repository root or a slash-separated relative directory. `WorkspaceRoot` identifies the nearest containing workspace, including a workspace at the same root. It is empty when no containing workspace is known.
+`Boundary.Root` is `.` for the selected repository root or a slash-separated relative directory.
+`Boundary.WorkspaceRoot` identifies the nearest containing workspace, including a workspace at the same
+root. It is empty when no containing workspace is known.
 
 A filename marker establishes only a boundary candidate. It does not prove that the project builds, that a workspace declaration includes every nested project, or that infrastructure is deployed. Those conclusions require bounded content parsing or provider evidence.
 

@@ -48,15 +48,15 @@ func (r Result[T]) Validate() error {
 
 func validateArtifactReferences(field string, references []ArtifactReference) error {
 	for index, reference := range references {
-		itemField := fmt.Sprintf("%s[%d]", field, index)
+		referenceField := fmt.Sprintf("%s[%d]", field, index)
 		if !validIdentifier(reference.Kind) || !validText(reference.ID) {
-			return invalidResult(itemField, "has an invalid kind or id")
+			return invalidResult(referenceField, "has an invalid kind or id")
 		}
 		if reference.SchemaVersion != "" && reference.SchemaVersion.Validate() != nil {
-			return invalidResult(itemField+".schema_version", "is invalid")
+			return invalidResult(referenceField+".schema_version", "is invalid")
 		}
 		if reference.Digest != "" && !validDigest(reference.Digest) {
-			return invalidResult(itemField+".digest", "is invalid")
+			return invalidResult(referenceField+".digest", "is invalid")
 		}
 		if index > 0 && compareArtifactReferences(references[index-1], reference) >= 0 {
 			return invalidResult(field, "must be strictly ordered")
@@ -111,13 +111,13 @@ func validDiagnosticLevel(level DiagnosticLevel) bool {
 	return level == DiagnosticLevelInfo || level == DiagnosticLevelWarning || level == DiagnosticLevelError
 }
 
-func validDiagnosticCode(value string) bool {
-	if value == "" || !upperAlphaNumeric(value[0]) || !upperAlphaNumeric(value[len(value)-1]) {
+func validDiagnosticCode(code string) bool {
+	if code == "" || !upperAlphaNumeric(code[0]) || !upperAlphaNumeric(code[len(code)-1]) {
 		return false
 	}
 	previousSeparator := false
-	for index := range len(value) {
-		character := value[index]
+	for index := range len(code) {
+		character := code[index]
 		if upperAlphaNumeric(character) {
 			previousSeparator = false
 			continue
@@ -131,8 +131,8 @@ func validDiagnosticCode(value string) bool {
 	return true
 }
 
-func validDigest(value string) bool {
-	algorithm, encoded, found := strings.Cut(value, ":")
+func validDigest(digest string) bool {
+	algorithm, encoded, found := strings.Cut(digest, ":")
 	if !found || !validIdentifier(algorithm) || len(encoded) < 16 || len(encoded)%2 != 0 {
 		return false
 	}
@@ -146,13 +146,14 @@ func validDigest(value string) bool {
 	return true
 }
 
-func validIdentifier(value string) bool {
-	if value == "" || !lowerAlphaNumeric(value[0]) || !lowerAlphaNumeric(value[len(value)-1]) {
+func validIdentifier(identifier string) bool {
+	if identifier == "" || !lowerAlphaNumeric(identifier[0]) ||
+		!lowerAlphaNumeric(identifier[len(identifier)-1]) {
 		return false
 	}
 	previousSeparator := false
-	for index := range len(value) {
-		character := value[index]
+	for index := range len(identifier) {
+		character := identifier[index]
 		if lowerAlphaNumeric(character) {
 			previousSeparator = false
 			continue
@@ -176,11 +177,11 @@ func upperAlphaNumeric(character byte) bool {
 		(character >= '0' && character <= '9')
 }
 
-func validText(value string) bool {
-	if value == "" || !utf8.ValidString(value) || strings.TrimSpace(value) != value {
+func validText(text string) bool {
+	if text == "" || !utf8.ValidString(text) || strings.TrimSpace(text) != text {
 		return false
 	}
-	for _, character := range value {
+	for _, character := range text {
 		if character < 0x20 || (character >= 0x7f && character <= 0x9f) {
 			return false
 		}

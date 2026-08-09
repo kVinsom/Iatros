@@ -116,11 +116,11 @@ func (r Result[T]) Normalized() Result[T] {
 		r.FinishedAt = r.FinishedAt.UTC()
 	}
 
-	r.Inputs = normalizedSlice(r.Inputs)
+	r.Inputs = normalizeSlice(r.Inputs)
 	slices.SortFunc(r.Inputs, compareArtifactReferences)
-	r.Outputs = normalizedSlice(r.Outputs)
+	r.Outputs = normalizeSlice(r.Outputs)
 	slices.SortFunc(r.Outputs, compareArtifactReferences)
-	r.Diagnostics = normalizedSlice(r.Diagnostics)
+	r.Diagnostics = normalizeSlice(r.Diagnostics)
 	slices.SortFunc(r.Diagnostics, compareDiagnostics)
 
 	return r
@@ -151,11 +151,11 @@ func compareDiagnostics(left, right Diagnostic) int {
 	return strings.Compare(left.Message, right.Message)
 }
 
-func normalizedSlice[S ~[]E, E any](values S) S {
-	result := slices.Clone(values)
-	if result == nil {
+func normalizeSlice[S ~[]E, E any](entries S) S {
+	normalized := slices.Clone(entries)
+	if normalized == nil {
 		return make(S, 0)
 	}
 
-	return result
+	return normalized
 }

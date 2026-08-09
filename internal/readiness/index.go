@@ -2,7 +2,6 @@ package readiness
 
 import (
 	"context"
-	"path"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -26,7 +25,7 @@ func buildRepositoryIndex(ctx context.Context, snapshot Snapshot) (repositoryInd
 		if err := ctx.Err(); err != nil {
 			return repositoryIndex{}, err
 		}
-		if !validRepositoryPath(directory, true) {
+		if !repositorypath.IsValidDirectory(directory) {
 			return repositoryIndex{}, ErrInvalidSnapshot
 		}
 		if repositorypath.IsExcludedDirectory(directory) {
@@ -41,7 +40,7 @@ func buildRepositoryIndex(ctx context.Context, snapshot Snapshot) (repositoryInd
 		if err := ctx.Err(); err != nil {
 			return repositoryIndex{}, err
 		}
-		if !validRepositoryPath(file, false) {
+		if !repositorypath.IsValidFile(file) {
 			return repositoryIndex{}, ErrInvalidSnapshot
 		}
 		if repositorypath.IsExcludedFile(file) {
@@ -118,27 +117,14 @@ func recognizedLicense(lowerName string) bool {
 	return false
 }
 
-func validRepositoryPath(value string, rootAllowed bool) bool {
-	if !validText(value) || strings.Contains(value, "\\") || path.IsAbs(value) ||
-		looksLikeWindowsPath(value) {
-		return false
-	}
-
-	cleaned := path.Clean(value)
-	if cleaned != value || cleaned == ".." || strings.HasPrefix(cleaned, "../") {
-		return false
-	}
-	return rootAllowed || cleaned != "."
-}
-
-func validIdentifier(value, separators string) bool {
-	if !validText(value) || !lowerAlphaNumeric(value[0]) ||
-		!lowerAlphaNumeric(value[len(value)-1]) {
+func validIdentifier(identifier, separators string) bool {
+	if !validText(identifier) || !lowerAlphaNumeric(identifier[0]) ||
+		!lowerAlphaNumeric(identifier[len(identifier)-1]) {
 		return false
 	}
 	previousSeparator := false
-	for index := range len(value) {
-		character := value[index]
+	for index := range len(identifier) {
+		character := identifier[index]
 		if lowerAlphaNumeric(character) {
 			previousSeparator = false
 			continue
@@ -156,20 +142,14 @@ func lowerAlphaNumeric(character byte) bool {
 		(character >= '0' && character <= '9')
 }
 
-func validText(value string) bool {
-	if value == "" || !utf8.ValidString(value) || strings.TrimSpace(value) != value {
+func validText(text string) bool {
+	if text == "" || !utf8.ValidString(text) || strings.TrimSpace(text) != text {
 		return false
 	}
-	for _, character := range value {
+	for _, character := range text {
 		if character < 0x20 || (character >= 0x7f && character <= 0x9f) {
 			return false
 		}
 	}
 	return true
-}
-
-func looksLikeWindowsPath(value string) bool {
-	return len(value) >= 2 &&
-		((value[0] >= 'A' && value[0] <= 'Z') || (value[0] >= 'a' && value[0] <= 'z')) &&
-		value[1] == ':'
 }

@@ -71,82 +71,87 @@ func validNestedRepositoryBoundaries(report TopologyReport) bool {
 	return true
 }
 
-func validTopologyProjects(values []TopologyProject) bool {
-	for index, value := range values {
-		if !validTopologyPath(value.Root) || !validTopologyKind(value.Kind) ||
-			!validOptionalTopologyPath(value.PrimaryWorkspaceRoot) ||
-			!validSortedTopologyPaths(value.WorkspaceRoots) ||
-			(value.PrimaryWorkspaceRoot != "" &&
-				(!slices.Contains(value.WorkspaceRoots, value.PrimaryWorkspaceRoot) ||
-					!topologyPathContains(value.PrimaryWorkspaceRoot, value.Root))) ||
-			!validTopologyMarkers(value.Markers) || !validTopologyComponents(value.Components) ||
-			(index > 0 && values[index-1].Root >= value.Root) {
+func validTopologyProjects(projects []TopologyProject) bool {
+	for index, project := range projects {
+		if !validTopologyPath(project.Root) || !validTopologyKind(project.Kind) ||
+			!validOptionalTopologyPath(project.PrimaryWorkspaceRoot) ||
+			!validSortedTopologyPaths(project.WorkspaceRoots) ||
+			(project.PrimaryWorkspaceRoot != "" &&
+				(!slices.Contains(project.WorkspaceRoots, project.PrimaryWorkspaceRoot) ||
+					!topologyPathContains(project.PrimaryWorkspaceRoot, project.Root))) ||
+			!validTopologyMarkers(project.Markers) ||
+			!validTopologyComponents(project.Components) ||
+			(index > 0 && projects[index-1].Root >= project.Root) {
 			return false
 		}
 	}
 	return true
 }
 
-func validTopologyWorkspaces(values []TopologyWorkspace) bool {
-	for index, value := range values {
-		if !validTopologyPath(value.Root) || !validTopologyMarkers(value.Markers) ||
-			!validTopologyComponents(value.Components) ||
-			!validSortedTopologyPaths(value.ContainedProjects) ||
-			!validSortedTopologyPaths(value.DeclaredProjects) ||
-			!validSortedTopologyPaths(value.ExcludedProjects) ||
-			!validTopologyDeclarations(value.Root, value.Declarations) ||
-			(index > 0 && values[index-1].Root >= value.Root) {
+func validTopologyWorkspaces(workspaces []TopologyWorkspace) bool {
+	for index, workspace := range workspaces {
+		if !validTopologyPath(workspace.Root) || !validTopologyMarkers(workspace.Markers) ||
+			!validTopologyComponents(workspace.Components) ||
+			!validSortedTopologyPaths(workspace.ContainedProjects) ||
+			!validSortedTopologyPaths(workspace.DeclaredProjects) ||
+			!validSortedTopologyPaths(workspace.ExcludedProjects) ||
+			!validTopologyDeclarations(workspace.Root, workspace.Declarations) ||
+			(index > 0 && workspaces[index-1].Root >= workspace.Root) {
 			return false
 		}
 	}
 	return true
 }
 
-func validTopologyDependencies(values []TopologyDependency) bool {
-	for index, value := range values {
-		if !validTopologyPath(value.FromProject) || !validRelativePath(value.ManifestPath) ||
-			!validLowerIdentifier(value.Ecosystem, "-_.") || !validText(value.Name) ||
-			!validOptionalTopologyText(value.Constraint) || !validTopologyScope(value.Scope) ||
-			!validDependencyResolution(value) || !validSortedTopologyPaths(value.TargetProjects) ||
-			(index > 0 && compareTopologyDependencies(values[index-1], value) >= 0) {
+func validTopologyDependencies(dependencies []TopologyDependency) bool {
+	for index, dependency := range dependencies {
+		if !validTopologyPath(dependency.FromProject) ||
+			!validRelativePath(dependency.ManifestPath) ||
+			!validLowerIdentifier(dependency.Ecosystem, "-_.") ||
+			!validText(dependency.Name) ||
+			!validOptionalTopologyText(dependency.Constraint) ||
+			!validTopologyScope(dependency.Scope) ||
+			!validDependencyResolution(dependency) ||
+			!validSortedTopologyPaths(dependency.TargetProjects) ||
+			(index > 0 && compareTopologyDependencies(dependencies[index-1], dependency) >= 0) {
 			return false
 		}
 	}
 	return true
 }
 
-func validTopologyMarkers(values []TopologyMarker) bool {
-	for index, value := range values {
-		if !validLowerIdentifier(value.ID, "-_.") || len(value.Evidence) == 0 ||
-			!validSortedRelativePaths(value.Evidence) ||
-			(index > 0 && values[index-1].ID >= value.ID) {
+func validTopologyMarkers(markers []TopologyMarker) bool {
+	for index, marker := range markers {
+		if !validLowerIdentifier(marker.ID, "-_.") || len(marker.Evidence) == 0 ||
+			!validSortedRelativePaths(marker.Evidence) ||
+			(index > 0 && markers[index-1].ID >= marker.ID) {
 			return false
 		}
 	}
 	return true
 }
 
-func validTopologyComponents(values []TopologyComponent) bool {
-	for index, value := range values {
-		if !validRelativePath(value.ManifestPath) ||
-			!validLowerIdentifier(value.Format, "-_.") ||
-			!validWorkspaceDeclaredState(value) ||
-			!validOptionalTopologyText(value.Name) ||
-			!validOptionalTopologyText(value.Version) ||
-			!validOptionalTopologyText(value.Module) ||
-			!validTopologyConstraints(value.Constraints) ||
-			(index > 0 && values[index-1].ManifestPath >= value.ManifestPath) {
+func validTopologyComponents(components []TopologyComponent) bool {
+	for index, component := range components {
+		if !validRelativePath(component.ManifestPath) ||
+			!validLowerIdentifier(component.Format, "-_.") ||
+			!validWorkspaceDeclaredState(component) ||
+			!validOptionalTopologyText(component.Name) ||
+			!validOptionalTopologyText(component.Version) ||
+			!validOptionalTopologyText(component.Module) ||
+			!validTopologyConstraints(component.Constraints) ||
+			(index > 0 && components[index-1].ManifestPath >= component.ManifestPath) {
 			return false
 		}
 	}
 	return true
 }
 
-func validTopologyConstraints(values []TopologyConstraint) bool {
-	for index, value := range values {
-		if !validText(value.Name) || !validOptionalTopologyText(value.Value) ||
-			!validTopologyConstraintScope(value.Scope) ||
-			(index > 0 && compareTopologyConstraints(values[index-1], value) >= 0) {
+func validTopologyConstraints(constraints []TopologyConstraint) bool {
+	for index, constraint := range constraints {
+		if !validText(constraint.Name) || !validOptionalTopologyText(constraint.Value) ||
+			!validTopologyConstraintScope(constraint.Scope) ||
+			(index > 0 && compareTopologyConstraints(constraints[index-1], constraint) >= 0) {
 			return false
 		}
 	}
@@ -155,166 +160,219 @@ func validTopologyConstraints(values []TopologyConstraint) bool {
 
 func validTopologyDeclarations(
 	workspaceRoot string,
-	values []TopologyWorkspaceDeclaration,
+	declarations []TopologyWorkspaceDeclaration,
 ) bool {
-	for index, value := range values {
-		if !validRelativePath(value.ManifestPath) ||
-			!validTopologyPattern(workspaceRoot, value.Pattern) ||
-			!validMemberResolution(value.Resolution) ||
-			((value.Pattern == "[outside-root]") !=
-				(value.Resolution == string(topology.MemberOutsideRoot))) ||
-			!validSortedTopologyPaths(value.ProjectRoots) ||
-			!validMemberTargets(value) ||
-			(index > 0 && compareTopologyDeclarations(values[index-1], value) >= 0) {
+	for index, declaration := range declarations {
+		if !validRelativePath(declaration.ManifestPath) ||
+			!validTopologyPattern(workspaceRoot, declaration.Pattern) ||
+			!validMemberResolution(declaration.Resolution) ||
+			((declaration.Pattern == "[outside-root]") !=
+				(declaration.Resolution == string(topology.MemberOutsideRoot))) ||
+			!validSortedTopologyPaths(declaration.ProjectRoots) ||
+			!validMemberTargets(declaration) ||
+			(index > 0 && compareTopologyDeclarations(declarations[index-1], declaration) >= 0) {
 			return false
 		}
 	}
 	return true
 }
 
-func validTopologyDiagnostics(status Status, values []Diagnostic) bool {
-	if status == StatusCompleted && len(values) != 0 {
+func validTopologyDiagnostics(status Status, diagnostics []Diagnostic) bool {
+	if status == StatusCompleted && len(diagnostics) != 0 {
 		return false
 	}
-	if status != StatusCompleted && len(values) == 0 {
+	if status != StatusCompleted && len(diagnostics) == 0 {
 		return false
 	}
-	for index, value := range values {
-		if !validDiagnosticCode(value.Code) || !validDiagnosticLevel(value.Level) ||
-			!validPublicMessage(value.Message) ||
-			(index > 0 && compareTopologyDiagnostics(values[index-1], value) >= 0) {
+	for index, diagnostic := range diagnostics {
+		if !validDiagnosticCode(diagnostic.Code) || !validDiagnosticLevel(diagnostic.Level) ||
+			!validPublicMessage(diagnostic.Message) ||
+			(index > 0 && compareTopologyDiagnostics(diagnostics[index-1], diagnostic) >= 0) {
 			return false
 		}
 	}
 	return true
+}
+
+type topologyRelationshipIndex struct {
+	projects               map[string]TopologyProject
+	workspaces             map[string]TopologyWorkspace
+	expectedWorkspaceRoots map[string]map[string]struct{}
+	expectedContained      map[string]map[string]struct{}
+	projectManifestPaths   map[string]map[string]struct{}
+	componentsByPath       map[string]TopologyComponent
+}
+
+type manifestMembership struct {
+	included map[string]struct{}
+	excluded map[string]struct{}
 }
 
 func validTopologyRelationships(report TopologyReport) bool {
-	projects := make(map[string]TopologyProject, len(report.Projects))
-	expectedWorkspaceRoots := make(map[string]map[string]struct{}, len(report.Projects))
-	projectManifestPaths := make(map[string]map[string]struct{}, len(report.Projects))
-	componentsByPath := make(map[string]TopologyComponent)
-	for _, value := range report.Projects {
-		projects[value.Root] = value
-		expectedWorkspaceRoots[value.Root] = make(map[string]struct{})
-		projectManifestPaths[value.Root] = make(map[string]struct{}, len(value.Components))
-		for _, component := range value.Components {
-			if path.Dir(component.ManifestPath) != value.Root {
-				return false
+	relationships, isValid := newTopologyRelationshipIndex(report)
+	if !isValid {
+		return false
+	}
+	return relationships.validWorkspaces(report.Workspaces) &&
+		relationships.validProjects(report.Projects) &&
+		relationships.validDependencies(report.Dependencies)
+}
+
+func newTopologyRelationshipIndex(report TopologyReport) (*topologyRelationshipIndex, bool) {
+	relationships := &topologyRelationshipIndex{
+		projects:               make(map[string]TopologyProject, len(report.Projects)),
+		workspaces:             make(map[string]TopologyWorkspace, len(report.Workspaces)),
+		expectedWorkspaceRoots: make(map[string]map[string]struct{}, len(report.Projects)),
+		expectedContained:      make(map[string]map[string]struct{}, len(report.Workspaces)),
+		projectManifestPaths:   make(map[string]map[string]struct{}, len(report.Projects)),
+		componentsByPath:       make(map[string]TopologyComponent),
+	}
+	for _, project := range report.Projects {
+		relationships.projects[project.Root] = project
+		relationships.expectedWorkspaceRoots[project.Root] = make(map[string]struct{})
+		relationships.projectManifestPaths[project.Root] = make(
+			map[string]struct{},
+			len(project.Components),
+		)
+		for _, component := range project.Components {
+			if path.Dir(component.ManifestPath) != project.Root ||
+				!recordTopologyComponent(relationships.componentsByPath, component) {
+				return nil, false
 			}
-			projectManifestPaths[value.Root][component.ManifestPath] = struct{}{}
-			if !recordTopologyComponent(componentsByPath, component) {
-				return false
-			}
+			relationships.projectManifestPaths[project.Root][component.ManifestPath] = struct{}{}
 		}
 	}
-	workspaces := make(map[string]TopologyWorkspace, len(report.Workspaces))
-	for _, value := range report.Workspaces {
-		workspaces[value.Root] = value
+	for _, workspace := range report.Workspaces {
+		relationships.workspaces[workspace.Root] = workspace
+		relationships.expectedContained[workspace.Root] = make(map[string]struct{})
 	}
-
-	expectedContained := make(map[string]map[string]struct{}, len(workspaces))
-	for root := range workspaces {
-		expectedContained[root] = make(map[string]struct{})
-	}
-	for _, value := range report.Projects {
-		if value.PrimaryWorkspaceRoot == "" {
+	for _, project := range report.Projects {
+		if project.PrimaryWorkspaceRoot == "" {
 			continue
 		}
-		if _, exists := workspaces[value.PrimaryWorkspaceRoot]; !exists {
-			return false
+		if _, exists := relationships.workspaces[project.PrimaryWorkspaceRoot]; !exists {
+			return nil, false
 		}
-		expectedContained[value.PrimaryWorkspaceRoot][value.Root] = struct{}{}
-		expectedWorkspaceRoots[value.Root][value.PrimaryWorkspaceRoot] = struct{}{}
+		relationships.expectedContained[project.PrimaryWorkspaceRoot][project.Root] = struct{}{}
+		relationships.expectedWorkspaceRoots[project.Root][project.PrimaryWorkspaceRoot] = struct{}{}
 	}
+	return relationships, true
+}
 
-	for _, workspace := range report.Workspaces {
-		for _, component := range workspace.Components {
-			if path.Dir(component.ManifestPath) != workspace.Root {
-				return false
-			}
-			if !recordTopologyComponent(componentsByPath, component) {
-				return false
-			}
-		}
-		if !topologyPathsEqualSet(workspace.ContainedProjects, expectedContained[workspace.Root]) {
+func (relationships *topologyRelationshipIndex) validWorkspaces(
+	workspaces []TopologyWorkspace,
+) bool {
+	for _, workspace := range workspaces {
+		if !relationships.validWorkspaceComponents(workspace) ||
+			!topologyPathsEqualSet(
+				workspace.ContainedProjects,
+				relationships.expectedContained[workspace.Root],
+			) {
 			return false
 		}
-
-		type manifestMembership struct {
-			included map[string]struct{}
-			excluded map[string]struct{}
-		}
-		memberships := make(map[string]*manifestMembership)
-		expectedExcluded := make(map[string]struct{})
-		for _, declaration := range workspace.Declarations {
-			if path.Dir(declaration.ManifestPath) != workspace.Root ||
-				!allTopologyProjectsExist(declaration.ProjectRoots, projects) {
-				return false
-			}
-			membership := memberships[declaration.ManifestPath]
-			if membership == nil {
-				membership = &manifestMembership{
-					included: make(map[string]struct{}),
-					excluded: make(map[string]struct{}),
-				}
-				memberships[declaration.ManifestPath] = membership
-			}
-			for _, projectRoot := range declaration.ProjectRoots {
-				if declaration.Exclude {
-					membership.excluded[projectRoot] = struct{}{}
-					expectedExcluded[projectRoot] = struct{}{}
-					continue
-				}
-				membership.included[projectRoot] = struct{}{}
-			}
-		}
-		expectedDeclared := make(map[string]struct{})
-		for _, membership := range memberships {
-			for projectRoot := range membership.included {
-				if _, excluded := membership.excluded[projectRoot]; !excluded {
-					expectedDeclared[projectRoot] = struct{}{}
-				}
-			}
-		}
-		if !topologyPathsEqualSet(workspace.DeclaredProjects, expectedDeclared) ||
+		expectedDeclared, expectedExcluded, isValid := relationships.workspaceMemberships(workspace)
+		if !isValid || !topologyPathsEqualSet(workspace.DeclaredProjects, expectedDeclared) ||
 			!topologyPathsEqualSet(workspace.ExcludedProjects, expectedExcluded) {
 			return false
 		}
 		for projectRoot := range expectedDeclared {
-			expectedWorkspaceRoots[projectRoot][workspace.Root] = struct{}{}
+			relationships.expectedWorkspaceRoots[projectRoot][workspace.Root] = struct{}{}
 		}
 	}
-	for _, value := range report.Projects {
-		if value.PrimaryWorkspaceRoot != nearestTopologyWorkspace(value.Root, workspaces) {
-			return false
-		}
-		if !topologyPathsEqualSet(value.WorkspaceRoots, expectedWorkspaceRoots[value.Root]) {
-			return false
-		}
-	}
-	for _, dependency := range report.Dependencies {
-		if _, exists := projects[dependency.FromProject]; !exists {
-			return false
-		}
-		if path.Dir(dependency.ManifestPath) != dependency.FromProject ||
-			!allTopologyProjectsExist(dependency.TargetProjects, projects) {
-			return false
-		}
-		if _, exists := projectManifestPaths[dependency.FromProject][dependency.ManifestPath]; !exists {
+	return true
+}
+
+func (relationships *topologyRelationshipIndex) validWorkspaceComponents(
+	workspace TopologyWorkspace,
+) bool {
+	for _, component := range workspace.Components {
+		if path.Dir(component.ManifestPath) != workspace.Root ||
+			!recordTopologyComponent(relationships.componentsByPath, component) {
 			return false
 		}
 	}
 	return true
 }
 
-func validWorkspaceDeclaredState(value TopologyComponent) bool {
-	switch value.Format {
+func (relationships *topologyRelationshipIndex) workspaceMemberships(
+	workspace TopologyWorkspace,
+) (map[string]struct{}, map[string]struct{}, bool) {
+	memberships := make(map[string]*manifestMembership)
+	expectedExcluded := make(map[string]struct{})
+	for _, declaration := range workspace.Declarations {
+		if path.Dir(declaration.ManifestPath) != workspace.Root ||
+			!allTopologyProjectsExist(declaration.ProjectRoots, relationships.projects) {
+			return nil, nil, false
+		}
+		membership := memberships[declaration.ManifestPath]
+		if membership == nil {
+			membership = &manifestMembership{
+				included: make(map[string]struct{}),
+				excluded: make(map[string]struct{}),
+			}
+			memberships[declaration.ManifestPath] = membership
+		}
+		for _, projectRoot := range declaration.ProjectRoots {
+			if declaration.Exclude {
+				membership.excluded[projectRoot] = struct{}{}
+				expectedExcluded[projectRoot] = struct{}{}
+				continue
+			}
+			membership.included[projectRoot] = struct{}{}
+		}
+	}
+
+	expectedDeclared := make(map[string]struct{})
+	for _, membership := range memberships {
+		for projectRoot := range membership.included {
+			if _, isExcluded := membership.excluded[projectRoot]; !isExcluded {
+				expectedDeclared[projectRoot] = struct{}{}
+			}
+		}
+	}
+	return expectedDeclared, expectedExcluded, true
+}
+
+func (relationships *topologyRelationshipIndex) validProjects(projects []TopologyProject) bool {
+	for _, project := range projects {
+		if project.PrimaryWorkspaceRoot != nearestTopologyWorkspace(
+			project.Root,
+			relationships.workspaces,
+		) || !topologyPathsEqualSet(
+			project.WorkspaceRoots,
+			relationships.expectedWorkspaceRoots[project.Root],
+		) {
+			return false
+		}
+	}
+	return true
+}
+
+func (relationships *topologyRelationshipIndex) validDependencies(
+	dependencies []TopologyDependency,
+) bool {
+	for _, dependency := range dependencies {
+		if _, exists := relationships.projects[dependency.FromProject]; !exists {
+			return false
+		}
+		if path.Dir(dependency.ManifestPath) != dependency.FromProject ||
+			!allTopologyProjectsExist(dependency.TargetProjects, relationships.projects) {
+			return false
+		}
+		if _, exists := relationships.projectManifestPaths[dependency.FromProject][dependency.ManifestPath]; !exists {
+			return false
+		}
+	}
+	return true
+}
+
+func validWorkspaceDeclaredState(component TopologyComponent) bool {
+	switch component.Format {
 	case string(manifest.FormatGoWorkspace):
-		return value.WorkspaceDeclared
+		return component.WorkspaceDeclared
 	case string(manifest.FormatGoModule), string(manifest.FormatPythonProject),
 		string(manifest.FormatPHPComposer):
-		return !value.WorkspaceDeclared
+		return !component.WorkspaceDeclared
 	default:
 		return true
 	}
@@ -322,22 +380,22 @@ func validWorkspaceDeclaredState(value TopologyComponent) bool {
 
 func recordTopologyComponent(
 	components map[string]TopologyComponent,
-	value TopologyComponent,
+	component TopologyComponent,
 ) bool {
-	existing, found := components[value.ManifestPath]
+	existing, found := components[component.ManifestPath]
 	if !found {
-		components[value.ManifestPath] = value
+		components[component.ManifestPath] = component
 		return true
 	}
-	return existing.ManifestPath == value.ManifestPath && existing.Format == value.Format &&
-		existing.Name == value.Name && existing.Version == value.Version &&
-		existing.Module == value.Module &&
-		existing.WorkspaceDeclared == value.WorkspaceDeclared &&
-		existing.DependenciesTruncated == value.DependenciesTruncated &&
-		existing.ConstraintsTruncated == value.ConstraintsTruncated &&
-		existing.WorkspaceMembersTruncated == value.WorkspaceMembersTruncated &&
-		existing.WorkspaceExcludesTruncated == value.WorkspaceExcludesTruncated &&
-		slices.Equal(existing.Constraints, value.Constraints)
+	return existing.ManifestPath == component.ManifestPath && existing.Format == component.Format &&
+		existing.Name == component.Name && existing.Version == component.Version &&
+		existing.Module == component.Module &&
+		existing.WorkspaceDeclared == component.WorkspaceDeclared &&
+		existing.DependenciesTruncated == component.DependenciesTruncated &&
+		existing.ConstraintsTruncated == component.ConstraintsTruncated &&
+		existing.WorkspaceMembersTruncated == component.WorkspaceMembersTruncated &&
+		existing.WorkspaceExcludesTruncated == component.WorkspaceExcludesTruncated &&
+		slices.Equal(existing.Constraints, component.Constraints)
 }
 
 func nearestTopologyWorkspace(
@@ -354,21 +412,21 @@ func nearestTopologyWorkspace(
 	}
 }
 
-func allTopologyProjectsExist(values []string, known map[string]TopologyProject) bool {
-	for _, value := range values {
-		if _, exists := known[value]; !exists {
+func allTopologyProjectsExist(projectRoots []string, projects map[string]TopologyProject) bool {
+	for _, projectRoot := range projectRoots {
+		if _, exists := projects[projectRoot]; !exists {
 			return false
 		}
 	}
 	return true
 }
 
-func topologyPathsEqualSet(values []string, expected map[string]struct{}) bool {
-	if len(values) != len(expected) {
+func topologyPathsEqualSet(paths []string, expected map[string]struct{}) bool {
+	if len(paths) != len(expected) {
 		return false
 	}
-	for _, value := range values {
-		if _, exists := expected[value]; !exists {
+	for _, candidatePath := range paths {
+		if _, exists := expected[candidatePath]; !exists {
 			return false
 		}
 	}
@@ -379,34 +437,34 @@ func topologyPathContains(root, candidate string) bool {
 	return root == "." || candidate == root || strings.HasPrefix(candidate, root+"/")
 }
 
-func validTopologyKind(value string) bool {
-	return value == "code" || value == "infrastructure" || value == "mixed"
+func validTopologyKind(kind string) bool {
+	return kind == "code" || kind == "infrastructure" || kind == "mixed"
 }
 
-func validTopologyScope(value string) bool {
-	return value == "runtime" || value == "development" || value == "build" || value == "peer"
+func validTopologyScope(scope string) bool {
+	return scope == "runtime" || scope == "development" || scope == "build" || scope == "peer"
 }
 
-func validTopologyConstraintScope(value string) bool {
-	return value == "runtime" || value == "development" || value == "build"
+func validTopologyConstraintScope(scope string) bool {
+	return scope == "runtime" || scope == "development" || scope == "build"
 }
 
-func validDependencyResolution(value TopologyDependency) bool {
-	switch value.Resolution {
+func validDependencyResolution(dependency TopologyDependency) bool {
+	switch dependency.Resolution {
 	case string(topology.DependencyInternal):
-		return len(value.TargetProjects) == 1 && !value.TargetsTruncated
+		return len(dependency.TargetProjects) == 1 && !dependency.TargetsTruncated
 	case string(topology.DependencyUnresolved):
-		return len(value.TargetProjects) == 0 && !value.TargetsTruncated
+		return len(dependency.TargetProjects) == 0 && !dependency.TargetsTruncated
 	case string(topology.DependencyAmbiguous):
-		return len(value.TargetProjects) >= 2 ||
-			(value.TargetsTruncated && len(value.TargetProjects) >= 1)
+		return len(dependency.TargetProjects) >= 2 ||
+			(dependency.TargetsTruncated && len(dependency.TargetProjects) >= 1)
 	default:
 		return false
 	}
 }
 
-func validMemberResolution(value string) bool {
-	switch value {
+func validMemberResolution(resolution string) bool {
+	switch resolution {
 	case string(topology.MemberMatched), string(topology.MemberUnmatched),
 		string(topology.MemberIndeterminate), string(topology.MemberUnsupported),
 		string(topology.MemberOutsideRoot):
@@ -416,65 +474,60 @@ func validMemberResolution(value string) bool {
 	}
 }
 
-func validMemberTargets(value TopologyWorkspaceDeclaration) bool {
-	switch value.Resolution {
+func validMemberTargets(declaration TopologyWorkspaceDeclaration) bool {
+	switch declaration.Resolution {
 	case string(topology.MemberMatched):
-		return len(value.ProjectRoots) > 0
+		return len(declaration.ProjectRoots) > 0
 	case string(topology.MemberUnmatched), string(topology.MemberIndeterminate),
 		string(topology.MemberUnsupported), string(topology.MemberOutsideRoot):
-		return len(value.ProjectRoots) == 0 && !value.MatchesTruncated
+		return len(declaration.ProjectRoots) == 0 && !declaration.MatchesTruncated
 	default:
 		return false
 	}
 }
 
-func validTopologyPath(value string) bool {
-	return value == "." || validRelativePath(value)
+func validTopologyPath(candidatePath string) bool {
+	return candidatePath == "." || validRelativePath(candidatePath)
 }
 
-func validOptionalTopologyPath(value string) bool {
-	return value == "" || validTopologyPath(value)
+func validOptionalTopologyPath(candidatePath string) bool {
+	return candidatePath == "" || validTopologyPath(candidatePath)
 }
 
-func validSortedTopologyPaths(values []string) bool {
-	if !strictlySortedStrings(values) {
+func validSortedTopologyPaths(paths []string) bool {
+	if !strictlySortedStrings(paths) {
 		return false
 	}
-	for _, value := range values {
-		if !validTopologyPath(value) {
+	for _, candidatePath := range paths {
+		if !validTopologyPath(candidatePath) {
 			return false
 		}
 	}
 	return true
 }
 
-func validTopologyPattern(workspaceRoot, value string) bool {
-	if value == "[outside-root]" {
+func validTopologyPattern(workspaceRoot, pattern string) bool {
+	if pattern == "[outside-root]" {
 		return true
 	}
-	lower := strings.ToLower(value)
-	if !validText(value) || strings.Contains(value, "\\") || path.IsAbs(value) ||
-		looksLikeWindowsPath(value) || strings.Contains(lower, "://") ||
+	lower := strings.ToLower(pattern)
+	if !validText(pattern) || strings.Contains(pattern, "\\") || path.IsAbs(pattern) ||
+		looksLikeWindowsPath(pattern) || strings.Contains(lower, "://") ||
 		strings.HasPrefix(lower, "file:") {
 		return false
 	}
-	resolved := path.Clean(path.Join(workspaceRoot, value))
+	resolved := path.Clean(path.Join(workspaceRoot, pattern))
 	return resolved != ".." && !strings.HasPrefix(resolved, "../")
 }
 
-func validOptionalTopologyText(value string) bool {
-	return value == "" || validText(value)
+func validOptionalTopologyText(text string) bool {
+	return text == "" || validText(text)
 }
 
 func compareTopologyConstraints(left, right TopologyConstraint) int {
-	for _, values := range [][2]string{
+	return compareTopologyTextFields([][2]string{
 		{left.Name, right.Name}, {left.Scope, right.Scope}, {left.Value, right.Value},
-	} {
-		if compared := strings.Compare(values[0], values[1]); compared != 0 {
-			return compared
-		}
-	}
-	return 0
+	})
 }
 
 func compareTopologyDeclarations(left, right TopologyWorkspaceDeclaration) int {
@@ -491,17 +544,15 @@ func compareTopologyDeclarations(left, right TopologyWorkspaceDeclaration) int {
 }
 
 func compareTopologyDependencies(left, right TopologyDependency) int {
-	for _, values := range [][2]string{
+	if compared := compareTopologyTextFields([][2]string{
 		{left.FromProject, right.FromProject},
 		{left.ManifestPath, right.ManifestPath},
 		{left.Ecosystem, right.Ecosystem},
 		{left.Name, right.Name},
 		{left.Scope, right.Scope},
 		{left.Constraint, right.Constraint},
-	} {
-		if compared := strings.Compare(values[0], values[1]); compared != 0 {
-			return compared
-		}
+	}); compared != 0 {
+		return compared
 	}
 	if left.Indirect != right.Indirect {
 		if left.Indirect {
@@ -516,6 +567,15 @@ func compareTopologyDependencies(left, right TopologyDependency) int {
 		return -1
 	}
 	return strings.Compare(left.Resolution, right.Resolution)
+}
+
+func compareTopologyTextFields(fields [][2]string) int {
+	for _, field := range fields {
+		if compared := strings.Compare(field[0], field[1]); compared != 0 {
+			return compared
+		}
+	}
+	return 0
 }
 
 func compareTopologyDiagnostics(left, right Diagnostic) int {

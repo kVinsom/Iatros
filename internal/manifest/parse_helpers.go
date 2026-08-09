@@ -9,6 +9,12 @@ import (
 
 var errInvalidManifest = errors.New("manifest content is invalid")
 
+type dependencyDeclarationOptions struct {
+	scope         Scope
+	isOptional    bool
+	excludedNames map[string]struct{}
+}
+
 func readDocument(ctx context.Context, document Document) ([]byte, error) {
 	if document.Reader == nil || document.Size < 0 {
 		return nil, errInvalidManifest
@@ -16,32 +22,30 @@ func readDocument(ctx context.Context, document Document) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	data, err := io.ReadAll(document.Reader)
+	content, err := io.ReadAll(document.Reader)
 	if err != nil {
 		return nil, err
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return data, nil
+	return content, nil
 }
 
 func appendMapDependencies(
 	destination []Dependency,
-	values map[string]string,
-	scope Scope,
-	optional bool,
-	skip map[string]struct{},
+	declarations map[string]string,
+	options dependencyDeclarationOptions,
 ) []Dependency {
-	for name, constraint := range values {
-		if _, excluded := skip[name]; excluded {
+	for name, constraint := range declarations {
+		if _, isExcluded := options.excludedNames[name]; isExcluded {
 			continue
 		}
 		destination = append(destination, Dependency{
 			Name:       name,
 			Constraint: constraint,
-			Scope:      scope,
-			Optional:   optional,
+			Scope:      options.scope,
+			Optional:   options.isOptional,
 		})
 	}
 	return destination
@@ -67,8 +71,7 @@ func dependencyNameAndConstraint(declaration string) (string, string, error) {
 func appendRequirementList(
 	destination []Dependency,
 	declarations []string,
-	scope Scope,
-	optional bool,
+	options dependencyDeclarationOptions,
 ) ([]Dependency, error) {
 	for _, declaration := range declarations {
 		name, constraint, err := dependencyNameAndConstraint(declaration)
@@ -78,8 +81,8 @@ func appendRequirementList(
 		destination = append(destination, Dependency{
 			Name:       name,
 			Constraint: constraint,
-			Scope:      scope,
-			Optional:   optional,
+			Scope:      options.scope,
+			Optional:   options.isOptional,
 		})
 	}
 	return destination, nil

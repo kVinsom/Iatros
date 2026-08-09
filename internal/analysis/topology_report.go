@@ -263,26 +263,26 @@ func newTopologyReport(status Status) TopologyReport {
 	}
 }
 
-func copyTopologyProjects(values []topology.Project) []TopologyProject {
-	projects := make([]TopologyProject, 0, len(values))
-	for _, value := range values {
+func copyTopologyProjects(sourceProjects []topology.Project) []TopologyProject {
+	projects := make([]TopologyProject, 0, len(sourceProjects))
+	for _, sourceProject := range sourceProjects {
 		projects = append(projects, TopologyProject{
-			Root:                 value.Root,
-			Kind:                 value.Kind,
-			PrimaryWorkspaceRoot: value.PrimaryWorkspaceRoot,
-			WorkspaceRoots:       slices.Clone(value.WorkspaceRoots),
-			Markers:              copyTopologyMarkers(value.Markers),
-			Components:           copyTopologyComponents(value.Components),
+			Root:                 sourceProject.Root,
+			Kind:                 sourceProject.Kind,
+			PrimaryWorkspaceRoot: sourceProject.PrimaryWorkspaceRoot,
+			WorkspaceRoots:       slices.Clone(sourceProject.WorkspaceRoots),
+			Markers:              copyTopologyMarkers(sourceProject.Markers),
+			Components:           copyTopologyComponents(sourceProject.Components),
 		})
 	}
 	return projects
 }
 
-func copyTopologyWorkspaces(values []topology.Workspace) []TopologyWorkspace {
-	workspaces := make([]TopologyWorkspace, 0, len(values))
-	for _, value := range values {
-		declarations := make([]TopologyWorkspaceDeclaration, 0, len(value.Declarations))
-		for _, declaration := range value.Declarations {
+func copyTopologyWorkspaces(sourceWorkspaces []topology.Workspace) []TopologyWorkspace {
+	workspaces := make([]TopologyWorkspace, 0, len(sourceWorkspaces))
+	for _, sourceWorkspace := range sourceWorkspaces {
+		declarations := make([]TopologyWorkspaceDeclaration, 0, len(sourceWorkspace.Declarations))
+		for _, declaration := range sourceWorkspace.Declarations {
 			declarations = append(declarations, TopologyWorkspaceDeclaration{
 				ManifestPath:     declaration.ManifestPath,
 				Pattern:          declaration.Pattern,
@@ -293,78 +293,75 @@ func copyTopologyWorkspaces(values []topology.Workspace) []TopologyWorkspace {
 			})
 		}
 		workspaces = append(workspaces, TopologyWorkspace{
-			Root:              value.Root,
-			Markers:           copyTopologyMarkers(value.Markers),
-			Components:        copyTopologyComponents(value.Components),
-			ContainedProjects: slices.Clone(value.ContainedProjects),
-			DeclaredProjects:  slices.Clone(value.DeclaredProjects),
-			ExcludedProjects:  slices.Clone(value.ExcludedProjects),
+			Root:              sourceWorkspace.Root,
+			Markers:           copyTopologyMarkers(sourceWorkspace.Markers),
+			Components:        copyTopologyComponents(sourceWorkspace.Components),
+			ContainedProjects: slices.Clone(sourceWorkspace.ContainedProjects),
+			DeclaredProjects:  slices.Clone(sourceWorkspace.DeclaredProjects),
+			ExcludedProjects:  slices.Clone(sourceWorkspace.ExcludedProjects),
 			Declarations:      declarations,
 		})
 	}
 	return workspaces
 }
 
-func copyTopologyDependencies(values []topology.Dependency) []TopologyDependency {
-	dependencies := make([]TopologyDependency, 0, len(values))
-	for _, value := range values {
+func copyTopologyDependencies(sourceDependencies []topology.Dependency) []TopologyDependency {
+	dependencies := make([]TopologyDependency, 0, len(sourceDependencies))
+	for _, sourceDependency := range sourceDependencies {
 		dependencies = append(dependencies, TopologyDependency{
-			FromProject:      value.FromProject,
-			ManifestPath:     value.ManifestPath,
-			Ecosystem:        value.Ecosystem,
-			Name:             value.Name,
-			Constraint:       value.Constraint,
-			Scope:            value.Scope,
-			Indirect:         value.Indirect,
-			Optional:         value.Optional,
-			Resolution:       string(value.Resolution),
-			TargetProjects:   slices.Clone(value.TargetProjects),
-			TargetsTruncated: value.TargetsTruncated,
+			FromProject:      sourceDependency.FromProject,
+			ManifestPath:     sourceDependency.ManifestPath,
+			Ecosystem:        sourceDependency.Ecosystem,
+			Name:             sourceDependency.Name,
+			Constraint:       sourceDependency.Constraint,
+			Scope:            sourceDependency.Scope,
+			Indirect:         sourceDependency.Indirect,
+			Optional:         sourceDependency.Optional,
+			Resolution:       string(sourceDependency.Resolution),
+			TargetProjects:   slices.Clone(sourceDependency.TargetProjects),
+			TargetsTruncated: sourceDependency.TargetsTruncated,
 		})
 	}
 	return dependencies
 }
 
-func copyTopologyPaths(values []string) []string {
-	if values == nil {
-		return make([]string, 0)
-	}
-	return slices.Clone(values)
+func copyTopologyPaths(paths []string) []string {
+	return normalizeTopologySlice(paths)
 }
 
-func copyTopologyMarkers(values []topology.Marker) []TopologyMarker {
-	markers := make([]TopologyMarker, 0, len(values))
-	for _, value := range values {
+func copyTopologyMarkers(sourceMarkers []topology.Marker) []TopologyMarker {
+	markers := make([]TopologyMarker, 0, len(sourceMarkers))
+	for _, sourceMarker := range sourceMarkers {
 		markers = append(markers, TopologyMarker{
-			ID:                value.ID,
-			Evidence:          slices.Clone(value.Evidence),
-			EvidenceTruncated: value.EvidenceTruncated,
+			ID:                sourceMarker.ID,
+			Evidence:          slices.Clone(sourceMarker.Evidence),
+			EvidenceTruncated: sourceMarker.EvidenceTruncated,
 		})
 	}
 	return markers
 }
 
-func copyTopologyComponents(values []topology.Component) []TopologyComponent {
-	components := make([]TopologyComponent, 0, len(values))
-	for _, value := range values {
-		constraints := make([]TopologyConstraint, 0, len(value.Constraints))
-		for _, constraint := range value.Constraints {
+func copyTopologyComponents(sourceComponents []topology.Component) []TopologyComponent {
+	components := make([]TopologyComponent, 0, len(sourceComponents))
+	for _, sourceComponent := range sourceComponents {
+		constraints := make([]TopologyConstraint, 0, len(sourceComponent.Constraints))
+		for _, constraint := range sourceComponent.Constraints {
 			constraints = append(constraints, TopologyConstraint{
 				Name: constraint.Name, Value: constraint.Value, Scope: constraint.Scope,
 			})
 		}
 		components = append(components, TopologyComponent{
-			ManifestPath:               value.ManifestPath,
-			Format:                     value.Format,
-			Name:                       value.Name,
-			Version:                    value.Version,
-			Module:                     value.Module,
+			ManifestPath:               sourceComponent.ManifestPath,
+			Format:                     sourceComponent.Format,
+			Name:                       sourceComponent.Name,
+			Version:                    sourceComponent.Version,
+			Module:                     sourceComponent.Module,
 			Constraints:                constraints,
-			WorkspaceDeclared:          value.WorkspaceDeclared,
-			DependenciesTruncated:      value.DependenciesTruncated,
-			ConstraintsTruncated:       value.ConstraintsTruncated,
-			WorkspaceMembersTruncated:  value.WorkspaceMembersTruncated,
-			WorkspaceExcludesTruncated: value.WorkspaceExcludesTruncated,
+			WorkspaceDeclared:          sourceComponent.WorkspaceDeclared,
+			DependenciesTruncated:      sourceComponent.DependenciesTruncated,
+			ConstraintsTruncated:       sourceComponent.ConstraintsTruncated,
+			WorkspaceMembersTruncated:  sourceComponent.WorkspaceMembersTruncated,
+			WorkspaceExcludesTruncated: sourceComponent.WorkspaceExcludesTruncated,
 		})
 	}
 	return components
@@ -438,78 +435,48 @@ func topologySummary(report TopologyReport) TopologySummary {
 	return summary
 }
 
-func normalizeTopologyProject(value TopologyProject) TopologyProject {
-	if value.WorkspaceRoots == nil {
-		value.WorkspaceRoots = make([]string, 0)
-	} else {
-		value.WorkspaceRoots = slices.Clone(value.WorkspaceRoots)
-	}
-	value.Markers = normalizeTopologyMarkers(value.Markers)
-	value.Components = normalizeTopologyComponents(value.Components)
-	return value
+func normalizeTopologyProject(project TopologyProject) TopologyProject {
+	project.WorkspaceRoots = normalizeTopologySlice(project.WorkspaceRoots)
+	project.Markers = normalizeTopologyMarkers(project.Markers)
+	project.Components = normalizeTopologyComponents(project.Components)
+	return project
 }
 
-func normalizeTopologyWorkspace(value TopologyWorkspace) TopologyWorkspace {
-	value.Markers = normalizeTopologyMarkers(value.Markers)
-	value.Components = normalizeTopologyComponents(value.Components)
-	if value.ContainedProjects == nil {
-		value.ContainedProjects = make([]string, 0)
-	} else {
-		value.ContainedProjects = slices.Clone(value.ContainedProjects)
+func normalizeTopologyWorkspace(workspace TopologyWorkspace) TopologyWorkspace {
+	workspace.Markers = normalizeTopologyMarkers(workspace.Markers)
+	workspace.Components = normalizeTopologyComponents(workspace.Components)
+	workspace.ContainedProjects = normalizeTopologySlice(workspace.ContainedProjects)
+	workspace.DeclaredProjects = normalizeTopologySlice(workspace.DeclaredProjects)
+	workspace.ExcludedProjects = normalizeTopologySlice(workspace.ExcludedProjects)
+	workspace.Declarations = normalizeTopologySlice(workspace.Declarations)
+	for index := range workspace.Declarations {
+		workspace.Declarations[index].ProjectRoots = normalizeTopologySlice(
+			workspace.Declarations[index].ProjectRoots,
+		)
 	}
-	if value.DeclaredProjects == nil {
-		value.DeclaredProjects = make([]string, 0)
-	} else {
-		value.DeclaredProjects = slices.Clone(value.DeclaredProjects)
-	}
-	if value.ExcludedProjects == nil {
-		value.ExcludedProjects = make([]string, 0)
-	} else {
-		value.ExcludedProjects = slices.Clone(value.ExcludedProjects)
-	}
-	if value.Declarations == nil {
-		value.Declarations = make([]TopologyWorkspaceDeclaration, 0)
-	} else {
-		value.Declarations = slices.Clone(value.Declarations)
-	}
-	for index := range value.Declarations {
-		if value.Declarations[index].ProjectRoots == nil {
-			value.Declarations[index].ProjectRoots = make([]string, 0)
-		} else {
-			value.Declarations[index].ProjectRoots = slices.Clone(
-				value.Declarations[index].ProjectRoots,
-			)
-		}
-	}
-	return value
+	return workspace
 }
 
-func normalizeTopologyMarkers(values []TopologyMarker) []TopologyMarker {
-	if values == nil {
-		return make([]TopologyMarker, 0)
+func normalizeTopologyMarkers(markers []TopologyMarker) []TopologyMarker {
+	markers = normalizeTopologySlice(markers)
+	for index := range markers {
+		markers[index].Evidence = normalizeTopologySlice(markers[index].Evidence)
 	}
-	values = slices.Clone(values)
-	for index := range values {
-		if values[index].Evidence == nil {
-			values[index].Evidence = make([]string, 0)
-		} else {
-			values[index].Evidence = slices.Clone(values[index].Evidence)
-		}
-	}
-	return values
+	return markers
 }
 
-func normalizeTopologyComponents(values []TopologyComponent) []TopologyComponent {
-	if values == nil {
-		return make([]TopologyComponent, 0)
+func normalizeTopologyComponents(components []TopologyComponent) []TopologyComponent {
+	components = normalizeTopologySlice(components)
+	for index := range components {
+		components[index].Constraints = normalizeTopologySlice(components[index].Constraints)
 	}
-	values = slices.Clone(values)
-	for index := range values {
-		if values[index].Constraints == nil {
-			values[index].Constraints = make([]TopologyConstraint, 0)
-		} else {
-			values[index].Constraints = slices.Clone(values[index].Constraints)
-		}
+	return components
+}
+
+func normalizeTopologySlice[S ~[]E, E any](entries S) S {
+	normalized := slices.Clone(entries)
+	if normalized == nil {
+		return make(S, 0)
 	}
-	return values
+	return normalized
 }

@@ -171,7 +171,7 @@ func TestLocalTopologyAnalyzerPreservesDiscoveryIssues(t *testing.T) {
 			}, nil
 		}),
 		projects: projectBoundaryDetectorFunc(func(context.Context, project.Snapshot) (project.Model, error) {
-			return project.Model{Projects: []project.Project{}, Workspaces: []project.Workspace{}, Partial: true}, nil
+			return project.Model{Projects: []project.Boundary{}, Workspaces: []project.Workspace{}, Partial: true}, nil
 		}),
 		manifests: manifestFactAnalyzerFunc(func(context.Context, manifest.Source, manifest.Snapshot) (manifest.Result, error) {
 			return manifest.Result{Manifests: []manifest.Manifest{}, Issues: []manifest.Issue{}, Partial: true}, nil

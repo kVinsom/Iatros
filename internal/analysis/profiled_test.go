@@ -126,12 +126,11 @@ func TestProfiledConstructorsRejectEmptyAndDuplicateProfileSets(t *testing.T) {
 			return err
 		}},
 	}
-	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			if err := test.run(); !errors.Is(err, ErrInvalidScalingProfile) {
+			if err := testCase.run(); !errors.Is(err, ErrInvalidScalingProfile) {
 				t.Fatalf("constructor error = %v, want ErrInvalidScalingProfile", err)
 			}
 		})

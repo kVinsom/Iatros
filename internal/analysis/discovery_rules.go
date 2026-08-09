@@ -202,12 +202,12 @@ func parseGitmodules(content []byte, maximum int) gitmodulesParseResult {
 		if !found || !strings.EqualFold(key, "path") {
 			continue
 		}
-		value, ok := parseGitConfigValue(rawValue)
-		if !ok || !validRelativePath(value) {
+		submodulePath, isValid := parseGitConfigValue(rawValue)
+		if !isValid || !validRelativePath(submodulePath) {
 			result.invalid = true
 			continue
 		}
-		sectionPath = value
+		sectionPath = submodulePath
 	}
 	flushSection()
 	slices.Sort(result.paths)
@@ -215,28 +215,28 @@ func parseGitmodules(content []byte, maximum int) gitmodulesParseResult {
 }
 
 func parseGitConfigValue(raw string) (string, bool) {
-	value := strings.TrimSpace(raw)
-	if value == "" {
+	configurationValue := strings.TrimSpace(raw)
+	if configurationValue == "" {
 		return "", false
 	}
-	if value[0] == '"' {
-		end := quotedValueEnd(value)
+	if configurationValue[0] == '"' {
+		end := quotedValueEnd(configurationValue)
 		if end < 0 {
 			return "", false
 		}
-		unquoted, err := strconv.Unquote(value[:end])
-		remainder := strings.TrimSpace(value[end:])
+		unquoted, err := strconv.Unquote(configurationValue[:end])
+		remainder := strings.TrimSpace(configurationValue[end:])
 		return unquoted, err == nil &&
 			(remainder == "" || strings.HasPrefix(remainder, "#") || strings.HasPrefix(remainder, ";"))
 	}
-	for index, character := range value {
+	for index, character := range configurationValue {
 		if (character == '#' || character == ';') && index > 0 &&
-			(value[index-1] == ' ' || value[index-1] == '\t') {
-			value = strings.TrimSpace(value[:index])
+			(configurationValue[index-1] == ' ' || configurationValue[index-1] == '\t') {
+			configurationValue = strings.TrimSpace(configurationValue[:index])
 			break
 		}
 	}
-	return value, value != ""
+	return configurationValue, configurationValue != ""
 }
 
 func splitGitConfigAssignment(line string) (string, string, bool) {
@@ -245,20 +245,20 @@ func splitGitConfigAssignment(line string) (string, string, bool) {
 		return "", "", false
 	}
 	key := strings.TrimSpace(line[:separator])
-	value := strings.TrimSpace(line[separator:])
-	value = strings.TrimSpace(strings.TrimPrefix(value, "="))
-	return key, value, key != "" && value != ""
+	configurationValue := strings.TrimSpace(line[separator:])
+	configurationValue = strings.TrimSpace(strings.TrimPrefix(configurationValue, "="))
+	return key, configurationValue, key != "" && configurationValue != ""
 }
 
-func quotedValueEnd(value string) int {
+func quotedValueEnd(configurationValue string) int {
 	escaped := false
-	for index := 1; index < len(value); index++ {
+	for index := 1; index < len(configurationValue); index++ {
 		switch {
 		case escaped:
 			escaped = false
-		case value[index] == '\\':
+		case configurationValue[index] == '\\':
 			escaped = true
-		case value[index] == '"':
+		case configurationValue[index] == '"':
 			return index + 1
 		}
 	}

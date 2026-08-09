@@ -64,13 +64,12 @@ func TestVersionSupportsStableSchemas(t *testing.T) {
 		{name: "invalid document", reader: "1.0", document: "", want: false},
 	}
 
-	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := test.reader.Supports(test.document); got != test.want {
-				t.Fatalf("Supports(%q) = %t, want %t", test.document, got, test.want)
+			if got := testCase.reader.Supports(testCase.document); got != testCase.want {
+				t.Fatalf("Supports(%q) = %t, want %t", testCase.document, got, testCase.want)
 			}
 		})
 	}

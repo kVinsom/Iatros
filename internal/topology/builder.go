@@ -176,23 +176,23 @@ func (b Builder) Build(ctx context.Context, snapshot Snapshot) (Model, error) {
 }
 
 type projectState struct {
-	value     Project
+	project   Project
 	manifests []manifest.Manifest
 }
 
 type workspaceState struct {
-	value Workspace
+	workspace Workspace
 }
 
 func (b Builder) buildProjects(
 	ctx context.Context,
 	model *Model,
-	boundaries []project.Project,
+	boundaries []project.Boundary,
 	manifests []manifest.Manifest,
 ) map[string]*projectState {
 	states := make(map[string]*projectState, len(boundaries))
 	for _, boundary := range boundaries {
-		states[boundary.Root] = &projectState{value: Project{
+		states[boundary.Root] = &projectState{project: Project{
 			Root:           boundary.Root,
 			Kind:           string(boundary.Kind),
 			WorkspaceRoots: make([]string, 0),
@@ -201,33 +201,37 @@ func (b Builder) buildProjects(
 		}}
 	}
 
-	for _, value := range manifests {
+	for _, manifestDocument := range manifests {
 		if err := ctx.Err(); err != nil {
 			return states
 		}
-		if value.Format == manifest.FormatGoWorkspace {
+		if manifestDocument.Format == manifest.FormatGoWorkspace {
 			continue
 		}
-		root := path.Dir(value.Path)
+		root := path.Dir(manifestDocument.Path)
 		state, exists := states[root]
 		if !exists {
 			model.addIssue(Issue{
-				Code: IssueManifestUnassigned, Path: value.Path,
+				Code: IssueManifestUnassigned, Path: manifestDocument.Path,
 				Message: "the manifest has no retained project boundary",
 			}, b.limits.MaxIssues)
 			continue
 		}
-		if len(state.value.Components) >= b.limits.MaxComponentsPerBoundary {
+		if len(state.project.Components) >= b.limits.MaxComponentsPerBoundary {
 			model.addIssue(Issue{
-				Code: IssueComponentLimit, Path: value.Path,
+				Code: IssueComponentLimit, Path: manifestDocument.Path,
 				Message: "additional project components were omitted by the configured limit",
 			}, b.limits.MaxIssues)
 			continue
 		}
-		state.value.Components = append(state.value.Components, componentFromManifest(value))
-		state.manifests = append(state.manifests, value)
-		if value.DependenciesTruncated || value.ConstraintsTruncated ||
-			value.WorkspaceMembersTruncated || value.WorkspaceExcludesTruncated {
+		state.project.Components = append(
+			state.project.Components,
+			componentFromManifest(manifestDocument),
+		)
+		state.manifests = append(state.manifests, manifestDocument)
+		if manifestDocument.DependenciesTruncated || manifestDocument.ConstraintsTruncated ||
+			manifestDocument.WorkspaceMembersTruncated ||
+			manifestDocument.WorkspaceExcludesTruncated {
 			model.Partial = true
 		}
 	}
@@ -246,9 +250,9 @@ func (b Builder) buildWorkspaces(
 		rootSet[boundary.Root] = struct{}{}
 		markersByRoot[boundary.Root] = boundary.Markers
 	}
-	for _, value := range manifests {
-		if manifestDeclaresWorkspace(value) {
-			rootSet[path.Dir(value.Path)] = struct{}{}
+	for _, manifestDocument := range manifests {
+		if manifestDeclaresWorkspace(manifestDocument) {
+			rootSet[path.Dir(manifestDocument.Path)] = struct{}{}
 		}
 	}
 
@@ -267,7 +271,7 @@ func (b Builder) buildWorkspaces(
 
 	states := make(map[string]*workspaceState, len(roots))
 	for _, root := range roots {
-		states[root] = &workspaceState{value: Workspace{
+		states[root] = &workspaceState{workspace: Workspace{
 			Root:              root,
 			Markers:           copyMarkers(markersByRoot[root]),
 			Components:        make([]Component, 0),
@@ -278,110 +282,115 @@ func (b Builder) buildWorkspaces(
 		}}
 	}
 
-	for _, value := range manifests {
+	for _, manifestDocument := range manifests {
 		if err := ctx.Err(); err != nil {
 			return states
 		}
-		if !manifestDeclaresWorkspace(value) {
+		if !manifestDeclaresWorkspace(manifestDocument) {
 			continue
 		}
-		state, exists := states[path.Dir(value.Path)]
+		state, exists := states[path.Dir(manifestDocument.Path)]
 		if !exists {
 			continue
 		}
-		if len(state.value.Components) >= b.limits.MaxComponentsPerBoundary {
+		if len(state.workspace.Components) >= b.limits.MaxComponentsPerBoundary {
 			model.addIssue(Issue{
-				Code: IssueComponentLimit, Path: value.Path,
+				Code: IssueComponentLimit, Path: manifestDocument.Path,
 				Message: "additional workspace components were omitted by the configured limit",
 			}, b.limits.MaxIssues)
 			continue
 		}
-		state.value.Components = append(state.value.Components, componentFromManifest(value))
-		if value.DependenciesTruncated || value.ConstraintsTruncated ||
-			value.WorkspaceMembersTruncated || value.WorkspaceExcludesTruncated {
+		state.workspace.Components = append(
+			state.workspace.Components,
+			componentFromManifest(manifestDocument),
+		)
+		if manifestDocument.DependenciesTruncated || manifestDocument.ConstraintsTruncated ||
+			manifestDocument.WorkspaceMembersTruncated ||
+			manifestDocument.WorkspaceExcludesTruncated {
 			model.Partial = true
 		}
 	}
 	return states
 }
 
-func manifestDeclaresWorkspace(value manifest.Manifest) bool {
-	return value.Format == manifest.FormatGoWorkspace || value.WorkspaceDeclared ||
-		len(value.WorkspaceMembers) != 0 || len(value.WorkspaceExcludes) != 0
+func manifestDeclaresWorkspace(manifestDocument manifest.Manifest) bool {
+	return manifestDocument.Format == manifest.FormatGoWorkspace ||
+		manifestDocument.WorkspaceDeclared || len(manifestDocument.WorkspaceMembers) != 0 ||
+		len(manifestDocument.WorkspaceExcludes) != 0
 }
 
 func limitedProjects(
 	ctx context.Context,
-	values []project.Project,
+	projects []project.Boundary,
 	maximum int,
-) ([]project.Project, error) {
-	return boundedLexicalTopN(ctx, values, maximum, func(value project.Project) string {
-		return value.Root
+) ([]project.Boundary, error) {
+	return boundedLexicalTopN(ctx, projects, maximum, func(boundary project.Boundary) string {
+		return boundary.Root
 	})
 }
 
 func limitedWorkspaces(
 	ctx context.Context,
-	values []project.Workspace,
+	workspaces []project.Workspace,
 	maximum int,
 ) ([]project.Workspace, error) {
-	return boundedLexicalTopN(ctx, values, maximum, func(value project.Workspace) string {
-		return value.Root
+	return boundedLexicalTopN(ctx, workspaces, maximum, func(workspace project.Workspace) string {
+		return workspace.Root
 	})
 }
 
 func limitedManifests(
 	ctx context.Context,
-	values []manifest.Manifest,
+	manifests []manifest.Manifest,
 	maximum int,
 ) ([]manifest.Manifest, error) {
-	return boundedLexicalTopN(ctx, values, maximum, func(value manifest.Manifest) string {
-		return value.Path
+	return boundedLexicalTopN(ctx, manifests, maximum, func(manifestDocument manifest.Manifest) string {
+		return manifestDocument.Path
 	})
 }
 
 func limitedNestedRepositories(
 	ctx context.Context,
-	values []string,
+	nestedRepositories []string,
 	maximum int,
 ) ([]string, error) {
-	return boundedLexicalTopN(ctx, values, maximum, func(value string) string {
-		return value
+	return boundedLexicalTopN(ctx, nestedRepositories, maximum, func(repositoryRoot string) string {
+		return repositoryRoot
 	})
 }
 
 func validNestedRepositories(
-	values []string,
-	projects []project.Project,
+	nestedRepositories []string,
+	projects []project.Boundary,
 	workspaces []project.Workspace,
 ) bool {
-	boundaries := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		if !validFile(value) {
+	boundaries := make(map[string]struct{}, len(nestedRepositories))
+	for _, repositoryRoot := range nestedRepositories {
+		if !validFile(repositoryRoot) {
 			return false
 		}
-		for ancestor := path.Dir(value); ancestor != "."; ancestor = path.Dir(ancestor) {
+		for ancestor := path.Dir(repositoryRoot); ancestor != "."; ancestor = path.Dir(ancestor) {
 			if _, nested := boundaries[ancestor]; nested {
 				return false
 			}
 		}
-		boundaries[value] = struct{}{}
+		boundaries[repositoryRoot] = struct{}{}
 	}
-	for _, value := range projects {
-		if pathInsideNestedRepository(value.Root, boundaries) {
+	for _, projectBoundary := range projects {
+		if pathInsideNestedRepository(projectBoundary.Root, boundaries) {
 			return false
 		}
 	}
-	for _, value := range workspaces {
-		if pathInsideNestedRepository(value.Root, boundaries) {
+	for _, workspace := range workspaces {
+		if pathInsideNestedRepository(workspace.Root, boundaries) {
 			return false
 		}
 	}
 	return true
 }
 
-func pathInsideNestedRepository(value string, boundaries map[string]struct{}) bool {
-	for candidate := value; candidate != "."; candidate = path.Dir(candidate) {
+func pathInsideNestedRepository(repositoryPath string, boundaries map[string]struct{}) bool {
+	for candidate := repositoryPath; candidate != "."; candidate = path.Dir(candidate) {
 		if _, nested := boundaries[candidate]; nested {
 			return true
 		}
@@ -391,23 +400,24 @@ func pathInsideNestedRepository(value string, boundaries map[string]struct{}) bo
 
 func boundedLexicalTopN[T any](
 	ctx context.Context,
-	values []T,
+	entries []T,
 	maximum int,
 	key func(T) string,
 ) ([]T, error) {
-	if len(values) <= maximum {
-		selected := make([]T, 0, len(values))
-		for index, value := range values {
+	compare := func(left, right T) int {
+		return strings.Compare(key(left), key(right))
+	}
+	if len(entries) <= maximum {
+		selected := make([]T, 0, len(entries))
+		for index, entry := range entries {
 			if index%128 == 0 {
 				if err := ctx.Err(); err != nil {
 					return nil, err
 				}
 			}
-			selected = append(selected, value)
+			selected = append(selected, entry)
 		}
-		slices.SortFunc(selected, func(left, right T) int {
-			return strings.Compare(key(left), key(right))
-		})
+		slices.SortFunc(selected, compare)
 		for index := 1; index < len(selected); index++ {
 			if key(selected[index-1]) == key(selected[index]) {
 				return nil, ErrInvalidSnapshot
@@ -416,32 +426,32 @@ func boundedLexicalTopN[T any](
 		return selected, ctx.Err()
 	}
 
-	selected := make([]T, 0, min(len(values), maximum))
+	selected := make([]T, 0, min(len(entries), maximum))
 	selectedKeys := make(map[string]bool, cap(selected))
-	for index, value := range values {
+	for index, entry := range entries {
 		if index%128 == 0 {
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
 		}
-		valueKey := key(value)
-		if _, retained := selectedKeys[valueKey]; retained {
-			selectedKeys[valueKey] = true
+		entryKey := key(entry)
+		if _, retained := selectedKeys[entryKey]; retained {
+			selectedKeys[entryKey] = true
 			continue
 		}
 		if len(selected) < maximum {
-			selected = append(selected, value)
-			selectedKeys[valueKey] = false
-			siftUpLargest(selected, len(selected)-1, key)
+			selected = append(selected, entry)
+			selectedKeys[entryKey] = false
+			siftUpLargest(selected, len(selected)-1, compare)
 			continue
 		}
-		if strings.Compare(valueKey, key(selected[0])) >= 0 {
+		if strings.Compare(entryKey, key(selected[0])) >= 0 {
 			continue
 		}
 		delete(selectedKeys, key(selected[0]))
-		selected[0] = value
-		selectedKeys[valueKey] = false
-		siftDownLargest(selected, 0, key)
+		selected[0] = entry
+		selectedKeys[entryKey] = false
+		siftDownLargest(selected, 0, compare)
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -451,9 +461,7 @@ func boundedLexicalTopN[T any](
 			return nil, ErrInvalidSnapshot
 		}
 	}
-	slices.SortFunc(selected, func(left, right T) int {
-		return strings.Compare(key(left), key(right))
-	})
+	slices.SortFunc(selected, compare)
 	return selected, nil
 }
 
@@ -490,7 +498,7 @@ func limitedSnapshotIssues(
 		if len(selected) < limits.MaxIssues {
 			selected = append(selected, issue)
 			seen[issue] = struct{}{}
-			siftUpLargestIssue(selected, len(selected)-1)
+			siftUpLargest(selected, len(selected)-1, compareIssues)
 			return nil
 		}
 		if compareIssues(issue, selected[0]) >= 0 {
@@ -500,7 +508,7 @@ func limitedSnapshotIssues(
 		delete(seen, selected[0])
 		selected[0] = issue
 		seen[issue] = struct{}{}
-		siftDownLargestIssue(selected, 0)
+		siftDownLargest(selected, 0, compareIssues)
 		truncated = true
 		return nil
 	}
@@ -522,62 +530,32 @@ func limitedSnapshotIssues(
 	return selected, truncated, nil
 }
 
-func siftUpLargestIssue(values []Issue, index int) {
+func siftUpLargest[T any](entries []T, index int, compare func(T, T) int) {
 	for index > 0 {
 		parent := (index - 1) / 2
-		if compareIssues(values[parent], values[index]) >= 0 {
+		if compare(entries[parent], entries[index]) >= 0 {
 			return
 		}
-		values[parent], values[index] = values[index], values[parent]
+		entries[parent], entries[index] = entries[index], entries[parent]
 		index = parent
 	}
 }
 
-func siftDownLargestIssue(values []Issue, index int) {
+func siftDownLargest[T any](entries []T, index int, compare func(T, T) int) {
 	for {
 		left := index*2 + 1
-		if left >= len(values) {
+		if left >= len(entries) {
 			return
 		}
 		largest := left
 		right := left + 1
-		if right < len(values) && compareIssues(values[right], values[left]) > 0 {
+		if right < len(entries) && compare(entries[right], entries[left]) > 0 {
 			largest = right
 		}
-		if compareIssues(values[index], values[largest]) >= 0 {
+		if compare(entries[index], entries[largest]) >= 0 {
 			return
 		}
-		values[index], values[largest] = values[largest], values[index]
-		index = largest
-	}
-}
-
-func siftUpLargest[T any](values []T, index int, key func(T) string) {
-	for index > 0 {
-		parent := (index - 1) / 2
-		if strings.Compare(key(values[parent]), key(values[index])) >= 0 {
-			return
-		}
-		values[parent], values[index] = values[index], values[parent]
-		index = parent
-	}
-}
-
-func siftDownLargest[T any](values []T, index int, key func(T) string) {
-	for {
-		left := index*2 + 1
-		if left >= len(values) {
-			return
-		}
-		largest := left
-		right := left + 1
-		if right < len(values) && strings.Compare(key(values[right]), key(values[left])) > 0 {
-			largest = right
-		}
-		if strings.Compare(key(values[index]), key(values[largest])) >= 0 {
-			return
-		}
-		values[index], values[largest] = values[largest], values[index]
+		entries[index], entries[largest] = entries[largest], entries[index]
 		index = largest
 	}
 }

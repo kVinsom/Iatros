@@ -41,10 +41,10 @@ func commandTarget(args []string) string {
 	return "."
 }
 
-func writeJSON(writer io.Writer, value any) error {
+func writeJSON(writer io.Writer, document any) error {
 	encoder := json.NewEncoder(writer)
 	encoder.SetIndent("", "  ")
-	return encoder.Encode(value)
+	return encoder.Encode(document)
 }
 
 func writeTextReport(writer io.Writer, report analysis.Report) error {
@@ -127,8 +127,8 @@ func writeIndentedTextEvidence(output *textWriter, evidence []string) {
 	}
 
 	output.line("    Evidence:")
-	for _, item := range evidence {
-		output.printf("      - %s\n", item)
+	for _, evidencePath := range evidence {
+		output.printf("      - %s\n", evidencePath)
 	}
 }
 
@@ -154,8 +154,8 @@ func writeTextEvidence(output *textWriter, evidence []string) {
 	}
 
 	output.line("  Evidence:")
-	for _, item := range evidence {
-		output.printf("    - %s\n", item)
+	for _, evidenceText := range evidence {
+		output.printf("    - %s\n", evidenceText)
 	}
 }
 
@@ -189,18 +189,18 @@ func newTextWriter(writer io.Writer) *textWriter {
 	return &textWriter{buffer: bufio.NewWriter(writer)}
 }
 
-func (w *textWriter) line(values ...any) {
+func (w *textWriter) line(arguments ...any) {
 	if w.err != nil {
 		return
 	}
-	_, w.err = fmt.Fprintln(w.buffer, values...)
+	_, w.err = fmt.Fprintln(w.buffer, arguments...)
 }
 
-func (w *textWriter) printf(format string, values ...any) {
+func (w *textWriter) printf(format string, arguments ...any) {
 	if w.err != nil {
 		return
 	}
-	_, w.err = fmt.Fprintf(w.buffer, format, values...)
+	_, w.err = fmt.Fprintf(w.buffer, format, arguments...)
 }
 
 func (w *textWriter) flush() error {
