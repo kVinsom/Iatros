@@ -63,16 +63,13 @@ func (s *LocalManifestSource) Open(ctx context.Context, path string) (io.ReadClo
 	}
 	openedInfo, err := file.Stat()
 	if err != nil {
-		_ = file.Close()
-		return nil, 0, err
+		return nil, 0, errors.Join(err, file.Close())
 	}
 	if !openedInfo.Mode().IsRegular() || !os.SameFile(info, openedInfo) {
-		_ = file.Close()
-		return nil, 0, errUnsafeManifestFile
+		return nil, 0, errors.Join(errUnsafeManifestFile, file.Close())
 	}
 	if err := ctx.Err(); err != nil {
-		_ = file.Close()
-		return nil, 0, err
+		return nil, 0, errors.Join(err, file.Close())
 	}
 	return file, openedInfo.Size(), nil
 }

@@ -71,12 +71,12 @@ func components(version Version) (uint16, uint16, bool) {
 	return uint16(major), uint16(minor), true
 }
 
-func canonicalNumber(value string) bool {
-	if value == "" || (len(value) > 1 && value[0] == '0') {
+func canonicalNumber(numberText string) bool {
+	if numberText == "" || (len(numberText) > 1 && numberText[0] == '0') {
 		return false
 	}
-	for index := range len(value) {
-		if value[index] < '0' || value[index] > '9' {
+	for index := range len(numberText) {
+		if numberText[index] < '0' || numberText[index] > '9' {
 			return false
 		}
 	}

@@ -11,11 +11,11 @@ import (
 	"unicode/utf8"
 )
 
-func decodeStrictJSON(data []byte, maximumDepth int, destination any) error {
-	if !utf8.Valid(data) {
+func decodeStrictJSON(content []byte, maximumDepth int, destination any) error {
+	if !utf8.Valid(content) {
 		return errInvalidManifest
 	}
-	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder := json.NewDecoder(bytes.NewReader(content))
 	decoder.UseNumber()
 	if err := scanJSONValue(decoder, 1, maximumDepth); err != nil {
 		return err
@@ -23,7 +23,7 @@ func decodeStrictJSON(data []byte, maximumDepth int, destination any) error {
 	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
 		return errInvalidManifest
 	}
-	if err := json.Unmarshal(data, destination); err != nil {
+	if err := json.Unmarshal(content, destination); err != nil {
 		return err
 	}
 	return nil
@@ -82,21 +82,21 @@ func scanJSONValue(decoder *json.Decoder, depth, maximumDepth int) error {
 	return nil
 }
 
-func foldJSONKey(value string) string {
+func foldJSONKey(key string) string {
 	ascii := true
-	for index := range len(value) {
-		if value[index] >= utf8.RuneSelf {
+	for index := range len(key) {
+		if key[index] >= utf8.RuneSelf {
 			ascii = false
 			break
 		}
 	}
 	if ascii {
-		return strings.ToLower(value)
+		return strings.ToLower(key)
 	}
 
 	var folded strings.Builder
-	folded.Grow(len(value))
-	for _, character := range value {
+	folded.Grow(len(key))
+	for _, character := range key {
 		canonical := unicode.ToLower(character)
 		for candidate := unicode.SimpleFold(character); candidate != character; candidate = unicode.SimpleFold(candidate) {
 			lowerCandidate := unicode.ToLower(candidate)
@@ -132,47 +132,54 @@ type nodePeerMetadata struct {
 }
 
 func (nodeParser) Parse(ctx context.Context, document Document, limits Limits) (Manifest, error) {
-	data, err := readDocument(ctx, document)
+	content, err := readDocument(ctx, document)
 	if err != nil {
 		return Manifest{}, err
 	}
-	var value nodeDocument
-	if err := decodeStrictJSON(data, limits.MaxNestingDepth, &value); err != nil {
+	var parsedDocument nodeDocument
+	if err := decodeStrictJSON(content, limits.MaxNestingDepth, &parsedDocument); err != nil {
 		return Manifest{}, err
 	}
 
-	workspaceValue := bytes.TrimSpace(value.Workspaces)
+	workspaceDeclaration := bytes.TrimSpace(parsedDocument.Workspaces)
 	manifest := Manifest{
-		Name: value.Name, Version: value.Version,
-		WorkspaceDeclared: len(workspaceValue) != 0 && !bytes.Equal(workspaceValue, []byte("null")),
+		Name: parsedDocument.Name, Version: parsedDocument.Version,
+		WorkspaceDeclared: len(workspaceDeclaration) != 0 &&
+			!bytes.Equal(workspaceDeclaration, []byte("null")),
 	}
-	optionalNames := make(map[string]struct{}, len(value.OptionalDependencies))
-	for name := range value.OptionalDependencies {
+	optionalNames := make(map[string]struct{}, len(parsedDocument.OptionalDependencies))
+	for name := range parsedDocument.OptionalDependencies {
 		optionalNames[name] = struct{}{}
 	}
 	manifest.Dependencies = appendMapDependencies(
-		manifest.Dependencies, value.Dependencies, ScopeRuntime, false, optionalNames,
+		manifest.Dependencies,
+		parsedDocument.Dependencies,
+		dependencyDeclarationOptions{scope: ScopeRuntime, excludedNames: optionalNames},
 	)
 	manifest.Dependencies = appendMapDependencies(
-		manifest.Dependencies, value.OptionalDependencies, ScopeRuntime, true, nil,
+		manifest.Dependencies,
+		parsedDocument.OptionalDependencies,
+		dependencyDeclarationOptions{scope: ScopeRuntime, isOptional: true},
 	)
 	manifest.Dependencies = appendMapDependencies(
-		manifest.Dependencies, value.DevDependencies, ScopeDevelopment, false, nil,
+		manifest.Dependencies,
+		parsedDocument.DevDependencies,
+		dependencyDeclarationOptions{scope: ScopeDevelopment},
 	)
-	for name, constraint := range value.PeerDependencies {
+	for name, constraint := range parsedDocument.PeerDependencies {
 		manifest.Dependencies = append(manifest.Dependencies, Dependency{
 			Name:       name,
 			Constraint: constraint,
 			Scope:      ScopePeer,
-			Optional:   value.PeerMetadata[name].Optional,
+			Optional:   parsedDocument.PeerMetadata[name].Optional,
 		})
 	}
-	for name, constraint := range value.Engines {
+	for name, constraint := range parsedDocument.Engines {
 		manifest.Constraints = append(manifest.Constraints, Constraint{
 			Name: name, Value: constraint, Scope: ScopeRuntime,
 		})
 	}
-	members, err := nodeWorkspaceMembers(value.Workspaces, limits.MaxNestingDepth)
+	members, err := nodeWorkspaceMembers(parsedDocument.Workspaces, limits.MaxNestingDepth)
 	if err != nil {
 		return Manifest{}, err
 	}
@@ -211,32 +218,37 @@ type composerDocument struct {
 }
 
 func (composerParser) Parse(ctx context.Context, document Document, limits Limits) (Manifest, error) {
-	data, err := readDocument(ctx, document)
+	content, err := readDocument(ctx, document)
 	if err != nil {
 		return Manifest{}, err
 	}
-	var value composerDocument
-	if err := decodeStrictJSON(data, limits.MaxNestingDepth, &value); err != nil {
+	var parsedDocument composerDocument
+	if err := decodeStrictJSON(content, limits.MaxNestingDepth, &parsedDocument); err != nil {
 		return Manifest{}, err
 	}
 
-	manifest := Manifest{Name: value.Name, Version: value.Version}
-	appendValues := func(values map[string]string, scope Scope) {
-		for name, constraint := range values {
-			if composerPlatformRequirement(name) {
-				manifest.Constraints = append(manifest.Constraints, Constraint{
-					Name: name, Value: constraint, Scope: scope,
-				})
-				continue
-			}
-			manifest.Dependencies = append(manifest.Dependencies, Dependency{
-				Name: name, Constraint: constraint, Scope: scope,
-			})
-		}
-	}
-	appendValues(value.Require, ScopeRuntime)
-	appendValues(value.RequireDev, ScopeDevelopment)
+	manifest := Manifest{Name: parsedDocument.Name, Version: parsedDocument.Version}
+	appendComposerRequirements(&manifest, parsedDocument.Require, ScopeRuntime)
+	appendComposerRequirements(&manifest, parsedDocument.RequireDev, ScopeDevelopment)
 	return manifest, nil
+}
+
+func appendComposerRequirements(
+	manifest *Manifest,
+	requirements map[string]string,
+	scope Scope,
+) {
+	for name, constraint := range requirements {
+		if composerPlatformRequirement(name) {
+			manifest.Constraints = append(manifest.Constraints, Constraint{
+				Name: name, Value: constraint, Scope: scope,
+			})
+			continue
+		}
+		manifest.Dependencies = append(manifest.Dependencies, Dependency{
+			Name: name, Constraint: constraint, Scope: scope,
+		})
+	}
 }
 
 func composerPlatformRequirement(name string) bool {

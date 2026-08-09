@@ -100,7 +100,7 @@ func buildModel(
 		if err := ctx.Err(); err != nil {
 			return emptyModel(partial), err
 		}
-		model.Projects = append(model.Projects, Project{
+		model.Projects = append(model.Projects, Boundary{
 			Root:          root,
 			Kind:          projectKind(builder),
 			WorkspaceRoot: nearestWorkspace(root, workspaceRoots),
@@ -108,7 +108,7 @@ func buildModel(
 		})
 	}
 
-	slices.SortFunc(model.Projects, func(left, right Project) int {
+	slices.SortFunc(model.Projects, func(left, right Boundary) int {
 		return strings.Compare(left.Root, right.Root)
 	})
 	slices.SortFunc(model.Workspaces, func(left, right Workspace) int {

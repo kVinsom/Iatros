@@ -137,11 +137,13 @@ func (a LocalTopologyAnalyzer) Analyze(ctx context.Context, request Request) (to
 	return model, nil
 }
 
-func topologyIssuesFromDiscovery(values []DiscoveryIssue) []topology.Issue {
-	issues := make([]topology.Issue, 0, len(values))
-	for _, value := range values {
+func topologyIssuesFromDiscovery(discoveryIssues []DiscoveryIssue) []topology.Issue {
+	issues := make([]topology.Issue, 0, len(discoveryIssues))
+	for _, discoveryIssue := range discoveryIssues {
 		issues = append(issues, topology.Issue{
-			Code: value.Code, Path: value.Path, Message: value.Message,
+			Code:    discoveryIssue.Code,
+			Path:    discoveryIssue.Path,
+			Message: discoveryIssue.Message,
 		})
 	}
 	return issues

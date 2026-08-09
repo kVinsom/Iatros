@@ -7,19 +7,19 @@ import (
 	"github.com/pelletier/go-toml/v2"
 )
 
-func validateTOML(data []byte, maximumDepth int) error {
-	var value map[string]any
-	if err := toml.Unmarshal(data, &value); err != nil {
+func validateTOML(content []byte, maximumDepth int) error {
+	var documentTree map[string]any
+	if err := toml.Unmarshal(content, &documentTree); err != nil {
 		return err
 	}
-	return validateTOMLDepth(value, 1, maximumDepth)
+	return validateTOMLDepth(documentTree, 1, maximumDepth)
 }
 
-func validateTOMLDepth(value any, depth, maximumDepth int) error {
+func validateTOMLDepth(node any, depth, maximumDepth int) error {
 	if depth > maximumDepth {
 		return errInvalidManifest
 	}
-	switch current := value.(type) {
+	switch current := node.(type) {
 	case map[string]any:
 		for _, nested := range current {
 			if err := validateTOMLDepth(nested, depth+1, maximumDepth); err != nil {
@@ -75,54 +75,74 @@ type pythonPoetryGroup struct {
 }
 
 func (pythonParser) Parse(ctx context.Context, document Document, limits Limits) (Manifest, error) {
-	data, err := readDocument(ctx, document)
+	content, err := readDocument(ctx, document)
 	if err != nil {
 		return Manifest{}, err
 	}
-	if err := validateTOML(data, limits.MaxNestingDepth); err != nil {
+	if err := validateTOML(content, limits.MaxNestingDepth); err != nil {
 		return Manifest{}, err
 	}
-	var value pythonDocument
-	if err := toml.Unmarshal(data, &value); err != nil {
+	var parsedDocument pythonDocument
+	if err := toml.Unmarshal(content, &parsedDocument); err != nil {
 		return Manifest{}, err
 	}
 
 	manifest := Manifest{
-		Name:    firstNonEmpty(value.Project.Name, value.Tool.Poetry.Name),
-		Version: firstNonEmpty(value.Project.Version, value.Tool.Poetry.Version),
+		Name: firstNonEmpty(
+			parsedDocument.Project.Name,
+			parsedDocument.Tool.Poetry.Name,
+		),
+		Version: firstNonEmpty(
+			parsedDocument.Project.Version,
+			parsedDocument.Tool.Poetry.Version,
+		),
 	}
-	if value.Project.RequiresPython != "" {
+	if parsedDocument.Project.RequiresPython != "" {
 		manifest.Constraints = append(manifest.Constraints, Constraint{
-			Name: "python", Value: value.Project.RequiresPython, Scope: ScopeRuntime,
+			Name: "python", Value: parsedDocument.Project.RequiresPython, Scope: ScopeRuntime,
 		})
 	}
 	manifest.Dependencies, err = appendRequirementList(
-		manifest.Dependencies, value.Project.Dependencies, ScopeRuntime, false,
+		manifest.Dependencies,
+		parsedDocument.Project.Dependencies,
+		dependencyDeclarationOptions{scope: ScopeRuntime},
 	)
 	if err != nil {
 		return Manifest{}, err
 	}
-	for _, declarations := range value.Project.OptionalDependencies {
+	for _, declarations := range parsedDocument.Project.OptionalDependencies {
 		manifest.Dependencies, err = appendRequirementList(
-			manifest.Dependencies, declarations, ScopeRuntime, true,
+			manifest.Dependencies,
+			declarations,
+			dependencyDeclarationOptions{scope: ScopeRuntime, isOptional: true},
 		)
 		if err != nil {
 			return Manifest{}, err
 		}
 	}
 	manifest.Dependencies, err = appendRequirementList(
-		manifest.Dependencies, value.BuildSystem.Requires, ScopeBuild, false,
+		manifest.Dependencies,
+		parsedDocument.BuildSystem.Requires,
+		dependencyDeclarationOptions{scope: ScopeBuild},
 	)
 	if err != nil {
 		return Manifest{}, err
 	}
-	if err := appendPoetryDependencies(&manifest, value.Tool.Poetry.Dependencies, ScopeRuntime); err != nil {
+	if err := appendPoetryDependencies(
+		&manifest,
+		parsedDocument.Tool.Poetry.Dependencies,
+		ScopeRuntime,
+	); err != nil {
 		return Manifest{}, err
 	}
-	if err := appendPoetryDependencies(&manifest, value.Tool.Poetry.DevDependencies, ScopeDevelopment); err != nil {
+	if err := appendPoetryDependencies(
+		&manifest,
+		parsedDocument.Tool.Poetry.DevDependencies,
+		ScopeDevelopment,
+	); err != nil {
 		return Manifest{}, err
 	}
-	for _, group := range value.Tool.Poetry.Group {
+	for _, group := range parsedDocument.Tool.Poetry.Group {
 		if err := appendPoetryDependencies(&manifest, group.Dependencies, ScopeDevelopment); err != nil {
 			return Manifest{}, err
 		}
@@ -130,9 +150,13 @@ func (pythonParser) Parse(ctx context.Context, document Document, limits Limits)
 	return manifest, nil
 }
 
-func appendPoetryDependencies(manifest *Manifest, values map[string]any, scope Scope) error {
-	for name, value := range values {
-		specifications, err := tomlDependencyValues(value, name)
+func appendPoetryDependencies(
+	manifest *Manifest,
+	declarations map[string]any,
+	scope Scope,
+) error {
+	for name, rawSpecification := range declarations {
+		specifications, err := tomlDependencyValues(rawSpecification, name)
 		if err != nil {
 			return err
 		}
@@ -184,39 +208,47 @@ type rustTarget struct {
 }
 
 func (rustParser) Parse(ctx context.Context, document Document, limits Limits) (Manifest, error) {
-	data, err := readDocument(ctx, document)
+	content, err := readDocument(ctx, document)
 	if err != nil {
 		return Manifest{}, err
 	}
-	if err := validateTOML(data, limits.MaxNestingDepth); err != nil {
+	if err := validateTOML(content, limits.MaxNestingDepth); err != nil {
 		return Manifest{}, err
 	}
-	var value rustDocument
-	if err := toml.Unmarshal(data, &value); err != nil {
+	var parsedDocument rustDocument
+	if err := toml.Unmarshal(content, &parsedDocument); err != nil {
 		return Manifest{}, err
 	}
 
-	manifest := Manifest{Name: value.Package.Name, Version: value.Package.Version}
-	if value.Workspace != nil {
+	manifest := Manifest{Name: parsedDocument.Package.Name, Version: parsedDocument.Package.Version}
+	if parsedDocument.Workspace != nil {
 		manifest.WorkspaceDeclared = true
-		manifest.WorkspaceMembers = value.Workspace.Members
-		manifest.WorkspaceExcludes = value.Workspace.Exclude
+		manifest.WorkspaceMembers = parsedDocument.Workspace.Members
+		manifest.WorkspaceExcludes = parsedDocument.Workspace.Exclude
 	}
-	if value.Package.RustVersion != "" {
+	if parsedDocument.Package.RustVersion != "" {
 		manifest.Constraints = append(manifest.Constraints, Constraint{
-			Name: "rust", Value: value.Package.RustVersion, Scope: ScopeBuild,
+			Name: "rust", Value: parsedDocument.Package.RustVersion, Scope: ScopeBuild,
 		})
 	}
-	if err := appendRustDependencies(&manifest, value.Dependencies, ScopeRuntime); err != nil {
+	if err := appendRustDependencies(&manifest, parsedDocument.Dependencies, ScopeRuntime); err != nil {
 		return Manifest{}, err
 	}
-	if err := appendRustDependencies(&manifest, value.DevDependencies, ScopeDevelopment); err != nil {
+	if err := appendRustDependencies(
+		&manifest,
+		parsedDocument.DevDependencies,
+		ScopeDevelopment,
+	); err != nil {
 		return Manifest{}, err
 	}
-	if err := appendRustDependencies(&manifest, value.BuildDependencies, ScopeBuild); err != nil {
+	if err := appendRustDependencies(
+		&manifest,
+		parsedDocument.BuildDependencies,
+		ScopeBuild,
+	); err != nil {
 		return Manifest{}, err
 	}
-	for _, target := range value.Target {
+	for _, target := range parsedDocument.Target {
 		if err := appendRustDependencies(&manifest, target.Dependencies, ScopeRuntime); err != nil {
 			return Manifest{}, err
 		}
@@ -230,9 +262,13 @@ func (rustParser) Parse(ctx context.Context, document Document, limits Limits) (
 	return manifest, nil
 }
 
-func appendRustDependencies(manifest *Manifest, values map[string]any, scope Scope) error {
-	for alias, value := range values {
-		specifications, err := tomlDependencyValues(value, alias)
+func appendRustDependencies(
+	manifest *Manifest,
+	declarations map[string]any,
+	scope Scope,
+) error {
+	for alias, rawSpecification := range declarations {
+		specifications, err := tomlDependencyValues(rawSpecification, alias)
 		if err != nil {
 			return err
 		}
@@ -252,8 +288,8 @@ type tomlDependency struct {
 	optional   bool
 }
 
-func tomlDependencyValues(value any, defaultName string) ([]tomlDependency, error) {
-	switch current := value.(type) {
+func tomlDependencyValues(rawSpecification any, defaultName string) ([]tomlDependency, error) {
+	switch current := rawSpecification.(type) {
 	case string:
 		return []tomlDependency{{name: defaultName, constraint: current}}, nil
 	case map[string]any:
@@ -262,23 +298,23 @@ func tomlDependencyValues(value any, defaultName string) ([]tomlDependency, erro
 	case []any:
 		return tomlDependencyList(current, defaultName)
 	case []map[string]any:
-		values := make([]any, len(current))
+		rawSpecifications := make([]any, len(current))
 		for index := range current {
-			values[index] = current[index]
+			rawSpecifications[index] = current[index]
 		}
-		return tomlDependencyList(values, defaultName)
+		return tomlDependencyList(rawSpecifications, defaultName)
 	default:
 		return nil, errInvalidManifest
 	}
 }
 
-func tomlDependencyList(values []any, defaultName string) ([]tomlDependency, error) {
-	if len(values) == 0 {
+func tomlDependencyList(rawSpecifications []any, defaultName string) ([]tomlDependency, error) {
+	if len(rawSpecifications) == 0 {
 		return nil, errInvalidManifest
 	}
-	dependencies := make([]tomlDependency, 0, len(values))
-	for _, value := range values {
-		nested, err := tomlDependencyValues(value, defaultName)
+	dependencies := make([]tomlDependency, 0, len(rawSpecifications))
+	for _, rawSpecification := range rawSpecifications {
+		nested, err := tomlDependencyValues(rawSpecification, defaultName)
 		if err != nil {
 			return nil, err
 		}
@@ -287,50 +323,50 @@ func tomlDependencyList(values []any, defaultName string) ([]tomlDependency, err
 	return dependencies, nil
 }
 
-func tomlDependencyTable(values map[string]any, defaultName string) (tomlDependency, error) {
-	constraint, err := optionalString(values, "version")
+func tomlDependencyTable(fields map[string]any, defaultName string) (tomlDependency, error) {
+	constraint, err := optionalString(fields, "version")
 	if err != nil {
 		return tomlDependency{}, err
 	}
-	name, err := optionalString(values, "package")
+	name, err := optionalString(fields, "package")
 	if err != nil {
 		return tomlDependency{}, err
 	}
 	if name == "" {
 		name = defaultName
 	}
-	optional, err := optionalBool(values, "optional")
+	optional, err := optionalBool(fields, "optional")
 	return tomlDependency{name: name, constraint: constraint, optional: optional}, err
 }
 
-func optionalString(values map[string]any, key string) (string, error) {
-	value, exists := values[key]
+func optionalString(fields map[string]any, key string) (string, error) {
+	rawField, exists := fields[key]
 	if !exists {
 		return "", nil
 	}
-	text, ok := value.(string)
+	text, ok := rawField.(string)
 	if !ok {
 		return "", errInvalidManifest
 	}
 	return text, nil
 }
 
-func optionalBool(values map[string]any, key string) (bool, error) {
-	value, exists := values[key]
+func optionalBool(fields map[string]any, key string) (bool, error) {
+	rawField, exists := fields[key]
 	if !exists {
 		return false, nil
 	}
-	flag, ok := value.(bool)
+	flag, ok := rawField.(bool)
 	if !ok {
 		return false, errInvalidManifest
 	}
 	return flag, nil
 }
 
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return value
+func firstNonEmpty(candidates ...string) string {
+	for _, candidate := range candidates {
+		if strings.TrimSpace(candidate) != "" {
+			return candidate
 		}
 	}
 	return ""

@@ -3,9 +3,22 @@ package repositoryignore
 
 import (
 	"context"
+	"errors"
 	"path"
 	"strings"
 	"unicode/utf8"
+)
+
+var errInvalidEntryKind = errors.New("repository ignore entry kind is invalid")
+
+// EntryKind identifies whether ignore rules are evaluated for a file or directory.
+type EntryKind uint8
+
+const (
+	// EntryFile identifies a regular repository file.
+	EntryFile EntryKind = iota + 1
+	// EntryDirectory identifies a repository directory.
+	EntryDirectory
 )
 
 // Rule is one compiled .gitignore pattern scoped to its containing directory.
@@ -63,8 +76,8 @@ func Parse(base string, content []byte, maxRules, maxPatternBytes int) ParseResu
 }
 
 // Ignored reports the last matching rule's decision for a repository-relative path.
-func Ignored(rules []Rule, repositoryPath string, directory bool) bool {
-	ignored, _ := IgnoredContext(context.Background(), rules, repositoryPath, directory)
+func Ignored(rules []Rule, repositoryPath string, entryKind EntryKind) bool {
+	ignored, _ := IgnoredContext(context.Background(), rules, repositoryPath, entryKind)
 	return ignored
 }
 
@@ -73,8 +86,11 @@ func IgnoredContext(
 	ctx context.Context,
 	rules []Rule,
 	repositoryPath string,
-	directory bool,
+	entryKind EntryKind,
 ) (bool, error) {
+	if entryKind != EntryFile && entryKind != EntryDirectory {
+		return false, errInvalidEntryKind
+	}
 	ignored := false
 	for index, rule := range rules {
 		if index%128 == 0 {
@@ -82,7 +98,7 @@ func IgnoredContext(
 				return false, err
 			}
 		}
-		matched, err := rule.matches(ctx, repositoryPath, directory)
+		matched, err := rule.matches(ctx, repositoryPath, entryKind)
 		if err != nil {
 			return false, err
 		}
@@ -135,8 +151,8 @@ func parseRule(base, line string) (Rule, bool) {
 	return rule, true
 }
 
-func (r Rule) matches(ctx context.Context, repositoryPath string, directory bool) (bool, error) {
-	if r.directoryOnly && !directory {
+func (r Rule) matches(ctx context.Context, repositoryPath string, entryKind EntryKind) (bool, error) {
+	if r.directoryOnly && entryKind != EntryDirectory {
 		return false, nil
 	}
 	relative, ok := relativeToBase(r.base, repositoryPath)
@@ -154,38 +170,39 @@ func (r Rule) matches(ctx context.Context, repositoryPath string, directory bool
 	return matchSegments(ctx, r.segments, strings.Split(relative, "/"))
 }
 
-func matchSegments(ctx context.Context, patterns, values []string) (bool, error) {
-	previous := make([]bool, len(values)+1)
+func matchSegments(ctx context.Context, patternSegments, pathSegments []string) (bool, error) {
+	previous := make([]bool, len(pathSegments)+1)
+	current := make([]bool, len(pathSegments)+1)
 	previous[0] = true
-	for patternIndex, pattern := range patterns {
+	for patternIndex, pattern := range patternSegments {
 		if patternIndex%128 == 0 {
 			if err := ctx.Err(); err != nil {
 				return false, err
 			}
 		}
-		current := make([]bool, len(values)+1)
+		clear(current)
 		if pattern == "**" {
-			trailing := patternIndex == len(patterns)-1
+			trailing := patternIndex == len(patternSegments)-1
 			if !trailing {
 				current[0] = previous[0]
 			}
-			for valueIndex := 1; valueIndex <= len(values); valueIndex++ {
+			for pathIndex := 1; pathIndex <= len(pathSegments); pathIndex++ {
 				if trailing {
-					current[valueIndex] = previous[valueIndex-1] || current[valueIndex-1]
+					current[pathIndex] = previous[pathIndex-1] || current[pathIndex-1]
 					continue
 				}
-				current[valueIndex] = previous[valueIndex] || current[valueIndex-1]
+				current[pathIndex] = previous[pathIndex] || current[pathIndex-1]
 			}
-			previous = current
+			previous, current = current, previous
 			continue
 		}
-		for valueIndex := 1; valueIndex <= len(values); valueIndex++ {
-			matched, err := path.Match(pattern, values[valueIndex-1])
-			current[valueIndex] = err == nil && previous[valueIndex-1] && matched
+		for pathIndex := 1; pathIndex <= len(pathSegments); pathIndex++ {
+			matched, err := path.Match(pattern, pathSegments[pathIndex-1])
+			current[pathIndex] = err == nil && previous[pathIndex-1] && matched
 		}
-		previous = current
+		previous, current = current, previous
 	}
-	return previous[len(values)], ctx.Err()
+	return previous[len(pathSegments)], ctx.Err()
 }
 
 func relativeToBase(base, repositoryPath string) (string, bool) {
@@ -206,19 +223,19 @@ func trimUnescapedTrailingSpaces(line string) string {
 	return line
 }
 
-func escapedAt(value string, index int) bool {
+func escapedAt(pattern string, index int) bool {
 	backslashes := 0
-	for index--; index >= 0 && value[index] == '\\'; index-- {
+	for index--; index >= 0 && pattern[index] == '\\'; index-- {
 		backslashes++
 	}
 	return backslashes%2 == 1
 }
 
-func invalidPatternText(value string) bool {
-	if !utf8.ValidString(value) || strings.HasSuffix(value, "\\") {
+func invalidPatternText(pattern string) bool {
+	if !utf8.ValidString(pattern) || strings.HasSuffix(pattern, "\\") {
 		return true
 	}
-	for _, character := range value {
+	for _, character := range pattern {
 		if character == 0 || character == '\n' || character == '\r' {
 			return true
 		}

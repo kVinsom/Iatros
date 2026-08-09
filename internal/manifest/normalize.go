@@ -9,115 +9,140 @@ import (
 const redactedReference = "[redacted-reference]"
 
 func normalizeManifest(
-	value Manifest,
+	parsedManifest Manifest,
 	candidate manifestCandidate,
 	limits Limits,
 ) (Manifest, []Issue, error) {
-	value.Path = candidate.path
-	value.Format = candidate.format
-	value.Dependencies = slices.Clone(value.Dependencies)
-	value.Constraints = slices.Clone(value.Constraints)
-	value.WorkspaceMembers = slices.Clone(value.WorkspaceMembers)
-	value.WorkspaceExcludes = slices.Clone(value.WorkspaceExcludes)
-	value.Version = sanitizeReference(value.Version)
-	if !validWorkspaceDeclaredState(value.Format, value.WorkspaceDeclared) ||
-		!validOptionalValue(value.Name, limits.MaxValueBytes) ||
-		!validOptionalValue(value.Version, limits.MaxValueBytes) ||
-		!validOptionalValue(value.Module, limits.MaxValueBytes) {
+	normalized := detachedManifest(parsedManifest, candidate)
+	if !validNormalizedManifest(normalized, limits.MaxValueBytes) {
 		return Manifest{}, nil, errInvalidParserResult
 	}
+	sortAndCompactManifest(&normalized)
+	issues := truncateManifestCollections(&normalized, candidate.path, limits)
+	return normalized, issues, nil
+}
 
-	for index := range value.Dependencies {
-		value.Dependencies[index].Constraint = sanitizeReference(value.Dependencies[index].Constraint)
-		dependency := value.Dependencies[index]
-		if !validValue(dependency.Name, limits.MaxValueBytes) ||
-			!validOptionalValue(dependency.Constraint, limits.MaxValueBytes) ||
+func detachedManifest(parsedManifest Manifest, candidate manifestCandidate) Manifest {
+	parsedManifest.Path = candidate.path
+	parsedManifest.Format = candidate.format
+	parsedManifest.Dependencies = slices.Clone(parsedManifest.Dependencies)
+	parsedManifest.Constraints = slices.Clone(parsedManifest.Constraints)
+	parsedManifest.WorkspaceMembers = slices.Clone(parsedManifest.WorkspaceMembers)
+	parsedManifest.WorkspaceExcludes = slices.Clone(parsedManifest.WorkspaceExcludes)
+	parsedManifest.Version = sanitizeReference(parsedManifest.Version)
+	for index := range parsedManifest.Dependencies {
+		parsedManifest.Dependencies[index].Constraint = sanitizeReference(
+			parsedManifest.Dependencies[index].Constraint,
+		)
+	}
+	for index := range parsedManifest.Constraints {
+		parsedManifest.Constraints[index].Value = sanitizeReference(
+			parsedManifest.Constraints[index].Value,
+		)
+	}
+	return parsedManifest
+}
+
+func validNormalizedManifest(candidate Manifest, maximumBytes int) bool {
+	if !validWorkspaceDeclaredState(candidate) ||
+		!validOptionalManifestText(candidate.Name, maximumBytes) ||
+		!validOptionalManifestText(candidate.Version, maximumBytes) ||
+		!validOptionalManifestText(candidate.Module, maximumBytes) {
+		return false
+	}
+
+	for _, dependency := range candidate.Dependencies {
+		if !validManifestText(dependency.Name, maximumBytes) ||
+			!validOptionalManifestText(dependency.Constraint, maximumBytes) ||
 			!validScope(dependency.Scope) {
-			return Manifest{}, nil, errInvalidParserResult
+			return false
 		}
 	}
-	for index := range value.Constraints {
-		value.Constraints[index].Value = sanitizeReference(value.Constraints[index].Value)
-		constraint := value.Constraints[index]
-		if !validValue(constraint.Name, limits.MaxValueBytes) ||
-			!validOptionalValue(constraint.Value, limits.MaxValueBytes) ||
+	for _, constraint := range candidate.Constraints {
+		if !validManifestText(constraint.Name, maximumBytes) ||
+			!validOptionalManifestText(constraint.Value, maximumBytes) ||
 			!validConstraintScope(constraint.Scope) {
-			return Manifest{}, nil, errInvalidParserResult
+			return false
 		}
 	}
-	for _, member := range value.WorkspaceMembers {
-		if !validValue(member, limits.MaxValueBytes) {
-			return Manifest{}, nil, errInvalidParserResult
+	for _, workspaceMember := range candidate.WorkspaceMembers {
+		if !validManifestText(workspaceMember, maximumBytes) {
+			return false
 		}
 	}
-	for _, excluded := range value.WorkspaceExcludes {
-		if !validValue(excluded, limits.MaxValueBytes) {
-			return Manifest{}, nil, errInvalidParserResult
+	for _, workspaceExclusion := range candidate.WorkspaceExcludes {
+		if !validManifestText(workspaceExclusion, maximumBytes) {
+			return false
 		}
 	}
+	return true
+}
 
-	slices.SortFunc(value.Dependencies, compareDependencies)
-	value.Dependencies = slices.Compact(value.Dependencies)
-	slices.SortFunc(value.Constraints, compareConstraints)
-	value.Constraints = slices.Compact(value.Constraints)
-	slices.Sort(value.WorkspaceMembers)
-	value.WorkspaceMembers = slices.Compact(value.WorkspaceMembers)
-	slices.Sort(value.WorkspaceExcludes)
-	value.WorkspaceExcludes = slices.Compact(value.WorkspaceExcludes)
+func sortAndCompactManifest(candidate *Manifest) {
+	slices.SortFunc(candidate.Dependencies, compareDependencies)
+	candidate.Dependencies = slices.Compact(candidate.Dependencies)
+	slices.SortFunc(candidate.Constraints, compareConstraints)
+	candidate.Constraints = slices.Compact(candidate.Constraints)
+	slices.Sort(candidate.WorkspaceMembers)
+	candidate.WorkspaceMembers = slices.Compact(candidate.WorkspaceMembers)
+	slices.Sort(candidate.WorkspaceExcludes)
+	candidate.WorkspaceExcludes = slices.Compact(candidate.WorkspaceExcludes)
+}
 
+func truncateManifestCollections(candidate *Manifest, manifestPath string, limits Limits) []Issue {
 	issues := make([]Issue, 0, 4)
-	if len(value.Dependencies) > limits.MaxDependenciesPerManifest {
-		value.Dependencies = slices.Clone(value.Dependencies[:limits.MaxDependenciesPerManifest])
-		value.DependenciesTruncated = true
+	if len(candidate.Dependencies) > limits.MaxDependenciesPerManifest {
+		candidate.Dependencies = slices.Clone(candidate.Dependencies[:limits.MaxDependenciesPerManifest])
+		candidate.DependenciesTruncated = true
 		issues = append(issues, Issue{
 			Code:    IssueDependencyLimit,
-			Path:    candidate.path,
+			Path:    manifestPath,
 			Message: "additional direct dependencies were omitted by the configured limit",
 		})
 	}
-	if len(value.Constraints) > limits.MaxConstraintsPerManifest {
-		value.Constraints = slices.Clone(value.Constraints[:limits.MaxConstraintsPerManifest])
-		value.ConstraintsTruncated = true
+	if len(candidate.Constraints) > limits.MaxConstraintsPerManifest {
+		candidate.Constraints = slices.Clone(candidate.Constraints[:limits.MaxConstraintsPerManifest])
+		candidate.ConstraintsTruncated = true
 		issues = append(issues, Issue{
 			Code:    IssueConstraintLimit,
-			Path:    candidate.path,
+			Path:    manifestPath,
 			Message: "additional runtime constraints were omitted by the configured limit",
 		})
 	}
-	if len(value.WorkspaceMembers) > limits.MaxWorkspaceMembersPerManifest {
-		value.WorkspaceMembers = slices.Clone(value.WorkspaceMembers[:limits.MaxWorkspaceMembersPerManifest])
-		value.WorkspaceMembersTruncated = true
+	if len(candidate.WorkspaceMembers) > limits.MaxWorkspaceMembersPerManifest {
+		candidate.WorkspaceMembers = slices.Clone(candidate.WorkspaceMembers[:limits.MaxWorkspaceMembersPerManifest])
+		candidate.WorkspaceMembersTruncated = true
 		issues = append(issues, Issue{
 			Code:    IssueWorkspaceLimit,
-			Path:    candidate.path,
+			Path:    manifestPath,
 			Message: "additional workspace members were omitted by the configured limit",
 		})
 	}
-	if len(value.WorkspaceExcludes) > limits.MaxWorkspaceExcludesPerManifest {
-		value.WorkspaceExcludes = slices.Clone(value.WorkspaceExcludes[:limits.MaxWorkspaceExcludesPerManifest])
-		value.WorkspaceExcludesTruncated = true
+	if len(candidate.WorkspaceExcludes) > limits.MaxWorkspaceExcludesPerManifest {
+		candidate.WorkspaceExcludes = slices.Clone(candidate.WorkspaceExcludes[:limits.MaxWorkspaceExcludesPerManifest])
+		candidate.WorkspaceExcludesTruncated = true
 		issues = append(issues, Issue{
 			Code:    IssueWorkspaceExcludeLimit,
-			Path:    candidate.path,
+			Path:    manifestPath,
 			Message: "additional workspace exclusions were omitted by the configured limit",
 		})
 	}
-	return value, issues, nil
+	return issues
 }
 
-func validWorkspaceDeclaredState(format Format, declared bool) bool {
-	switch format {
+func validWorkspaceDeclaredState(candidate Manifest) bool {
+	switch candidate.Format {
 	case FormatGoWorkspace:
-		return declared
+		return candidate.WorkspaceDeclared
 	case FormatGoModule, FormatPythonProject, FormatPHPComposer:
-		return !declared
+		return !candidate.WorkspaceDeclared
 	default:
 		return true
 	}
 }
 
-func sanitizeReference(value string) string {
-	target := strings.TrimSpace(value)
+func sanitizeReference(reference string) string {
+	target := strings.TrimSpace(reference)
 	lower := strings.ToLower(target)
 	if strings.Contains(lower, "://") {
 		return redactedReference
@@ -139,44 +164,51 @@ func sanitizeReference(value string) string {
 			return redactedReference
 		}
 	}
-	return value
+	return reference
 }
 
-func looksLikeLocalReference(value string) bool {
-	return path.IsAbs(value) || looksLikeWindowsPath(value) ||
-		strings.HasPrefix(value, `\\`) ||
-		strings.HasPrefix(value, "./") || strings.HasPrefix(value, "../") ||
-		strings.HasPrefix(value, "~/") || strings.HasPrefix(value, `.\`) ||
-		strings.HasPrefix(value, `..\`) || strings.HasPrefix(value, `~\`)
+func looksLikeLocalReference(reference string) bool {
+	return path.IsAbs(reference) || looksLikeWindowsAbsolutePath(reference) ||
+		strings.HasPrefix(reference, `\\`) ||
+		strings.HasPrefix(reference, "./") || strings.HasPrefix(reference, "../") ||
+		strings.HasPrefix(reference, "~/") || strings.HasPrefix(reference, `.\`) ||
+		strings.HasPrefix(reference, `..\`) || strings.HasPrefix(reference, `~\`)
 }
 
-func looksLikeSCPReference(value string) bool {
-	at := strings.IndexByte(value, '@')
+func looksLikeWindowsAbsolutePath(reference string) bool {
+	return len(reference) >= 2 &&
+		((reference[0] >= 'A' && reference[0] <= 'Z') ||
+			(reference[0] >= 'a' && reference[0] <= 'z')) &&
+		reference[1] == ':'
+}
+
+func looksLikeSCPReference(reference string) bool {
+	at := strings.IndexByte(reference, '@')
 	if at <= 0 {
 		return false
 	}
-	colon := strings.IndexByte(value[at+1:], ':')
-	return colon > 0 && at+1+colon < len(value)-1
+	colon := strings.IndexByte(reference[at+1:], ':')
+	return colon > 0 && at+1+colon < len(reference)-1
 }
 
-func splitReferenceScheme(value string) (string, string, bool) {
-	colon := strings.IndexByte(value, ':')
-	if colon <= 0 || value[0] < 'a' || value[0] > 'z' {
+func splitReferenceScheme(reference string) (string, string, bool) {
+	colon := strings.IndexByte(reference, ':')
+	if colon <= 0 || reference[0] < 'a' || reference[0] > 'z' {
 		return "", "", false
 	}
 	for index := 1; index < colon; index++ {
-		character := value[index]
+		character := reference[index]
 		if (character < 'a' || character > 'z') &&
 			(character < '0' || character > '9') &&
 			character != '+' && character != '-' && character != '.' {
 			return "", "", false
 		}
 	}
-	return value[:colon], value[colon+1:], true
+	return reference[:colon], reference[colon+1:], true
 }
 
-func validOptionalValue(value string, maxBytes int) bool {
-	return value == "" || validValue(value, maxBytes)
+func validOptionalManifestText(text string, maximumBytes int) bool {
+	return text == "" || validManifestText(text, maximumBytes)
 }
 
 func validScope(scope Scope) bool {

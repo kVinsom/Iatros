@@ -187,7 +187,7 @@ The following paths define capability ownership. Analysis orchestration, discove
 
 | Domain | Target responsibility |
 | --- | --- |
-| `internal/project` | Provider-neutral project and workspace boundary model consumed by topology analysis. |
+| `internal/project` | Schema-versioned canonical project contracts plus provider-neutral project and workspace boundary detection consumed by topology analysis. |
 | `internal/manifest` | Bounded, provider-neutral manifest parsing, normalization, resource profiles, and replaceable parser contracts. |
 | `internal/topology` | Deterministic project/component association, workspace relationships, and direct local dependency resolution. |
 | `internal/analysis` | Unified scaling profiles, bounded discovery, analysis orchestration, topology analysis, and versioned CLI report contracts. |
@@ -337,7 +337,7 @@ The approval and execution semantics remain proposed until [ADR-0004](decisions/
 
 | Concept | Intended owner | Notes |
 | --- | --- | --- |
-| Canonical project model | `internal/project` | Private, provider-neutral representation; schema is TBD. |
+| Canonical project model | `internal/project` | Private, provider-neutral schema `1.0` for projects, environments, services, dependencies, and configuration; repository boundary evidence remains a distinct `Boundary` type. |
 | Normalized manifest facts | `internal/manifest` | Private direct declarations mapped through the topology report contract. |
 | Repository discovery | `internal/analysis` and `internal/repositoryignore` | Bounded local inventory, Git-style ignore rules, large-file controls, and nested-repository isolation. |
 | Repository topology | `internal/topology` and `internal/analysis` | Private associated model plus versioned CLI schema `0.3`; no network API contract yet. |

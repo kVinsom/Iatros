@@ -3,9 +3,10 @@ package project
 import (
 	"errors"
 	"fmt"
-	"path"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/kVinsom/Iatros/internal/repositorypath"
 )
 
 // ErrInvalidProject indicates that a project violates the canonical model contract.
@@ -191,7 +192,7 @@ func (c Configuration) validate(field string) error {
 
 		switch entry.Source {
 		case ConfigurationSourceLiteral:
-			if entry.Reference != "" || entry.Sensitive || !validValue(entry.Value) {
+			if entry.Reference != "" || entry.Sensitive || !validConfigurationLiteral(entry.Value) {
 				return invalidProject(entryField, "contains an unsafe literal configuration value")
 			}
 		case ConfigurationSourceEnvironment:
@@ -218,13 +219,14 @@ func invalidProject(field, reason string) error {
 	return fmt.Errorf("%w: %s %s", ErrInvalidProject, field, reason)
 }
 
-func validIdentifier(value string) bool {
-	if value == "" || !lowerAlphaNumeric(value[0]) || !lowerAlphaNumeric(value[len(value)-1]) {
+func validIdentifier(identifier string) bool {
+	if identifier == "" || !lowerAlphaNumeric(identifier[0]) ||
+		!lowerAlphaNumeric(identifier[len(identifier)-1]) {
 		return false
 	}
 	previousSeparator := false
-	for index := range len(value) {
-		character := value[index]
+	for index := range len(identifier) {
+		character := identifier[index]
 		if lowerAlphaNumeric(character) {
 			previousSeparator = false
 			continue
@@ -243,12 +245,12 @@ func lowerAlphaNumeric(character byte) bool {
 		(character >= '0' && character <= '9')
 }
 
-func validConfigurationKey(value string) bool {
-	if value == "" || !alphaNumeric(value[0]) || !alphaNumeric(value[len(value)-1]) {
+func validConfigurationKey(key string) bool {
+	if key == "" || !alphaNumeric(key[0]) || !alphaNumeric(key[len(key)-1]) {
 		return false
 	}
-	for index := range len(value) {
-		character := value[index]
+	for index := range len(key) {
+		character := key[index]
 		if !alphaNumeric(character) && character != '-' && character != '_' && character != '.' {
 			return false
 		}
@@ -261,11 +263,11 @@ func alphaNumeric(character byte) bool {
 	return lowerAlphaNumeric(character) || (character >= 'A' && character <= 'Z')
 }
 
-func validText(value string) bool {
-	if value == "" || !utf8.ValidString(value) || strings.TrimSpace(value) != value {
+func validText(text string) bool {
+	if text == "" || !utf8.ValidString(text) || strings.TrimSpace(text) != text {
 		return false
 	}
-	for _, character := range value {
+	for _, character := range text {
 		if character < 0x20 || (character >= 0x7f && character <= 0x9f) {
 			return false
 		}
@@ -274,20 +276,10 @@ func validText(value string) bool {
 	return true
 }
 
-func validValue(value string) bool {
-	return utf8.ValidString(value) && !strings.ContainsRune(value, '\x00')
+func validConfigurationLiteral(literal string) bool {
+	return utf8.ValidString(literal) && !strings.ContainsRune(literal, '\x00')
 }
 
-func validRelativePath(value string) bool {
-	if value == "" || !utf8.ValidString(value) || strings.Contains(value, "\\") ||
-		path.IsAbs(value) || looksLikeWindowsPath(value) {
-		return false
-	}
-
-	cleaned := path.Clean(value)
-	return cleaned == value && cleaned != ".." && !strings.HasPrefix(cleaned, "../")
-}
-
-func looksLikeWindowsPath(value string) bool {
-	return len(value) >= 2 && alphaNumeric(value[0]) && value[1] == ':'
+func validRelativePath(candidatePath string) bool {
+	return repositorypath.IsValidDirectory(candidatePath)
 }

@@ -51,17 +51,16 @@ func TestScalingProfileForNameReturnsCanonicalProfiles(t *testing.T) {
 		{name: ScalingProfileMonorepo, want: MonorepoScalingProfile()},
 		{name: ScalingProfileEnterprise, want: EnterpriseScalingProfile()},
 	}
-	for _, test := range tests {
-		test := test
-		t.Run(string(test.name), func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(string(testCase.name), func(t *testing.T) {
 			t.Parallel()
 
-			got, err := ScalingProfileForName(test.name)
+			got, err := ScalingProfileForName(testCase.name)
 			if err != nil {
 				t.Fatalf("ScalingProfileForName() error = %v", err)
 			}
-			if got != test.want {
-				t.Fatalf("ScalingProfileForName() = %+v, want %+v", got, test.want)
+			if got != testCase.want {
+				t.Fatalf("ScalingProfileForName() = %+v, want %+v", got, testCase.want)
 			}
 		})
 	}
@@ -112,13 +111,12 @@ func TestScalingProfileValidateRejectsInvalidComponentsAndRelationships(t *testi
 			profile.Topology.MaxNestedRepositories = profile.Discovery.MaxNestedRepositories - 1
 		}},
 	}
-	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
 			profile := SmallScalingProfile()
-			test.mutate(&profile)
+			testCase.mutate(&profile)
 			if err := profile.Validate(); !errors.Is(err, ErrInvalidScalingProfile) {
 				t.Fatalf("Validate() error = %v, want ErrInvalidScalingProfile", err)
 			}

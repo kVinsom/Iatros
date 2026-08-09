@@ -387,7 +387,7 @@ func newTestDetector(t testing.TB, limits Limits) Detector {
 	return detector
 }
 
-func findProject(t testing.TB, model Model, root string) Project {
+func findProject(t testing.TB, model Model, root string) Boundary {
 	t.Helper()
 
 	for _, project := range model.Projects {
@@ -396,7 +396,7 @@ func findProject(t testing.TB, model Model, root string) Project {
 		}
 	}
 	t.Fatalf("project root %q not found in %#v", root, model.Projects)
-	return Project{}
+	return Boundary{}
 }
 
 func findMarker(t testing.TB, markers []Marker, id string) Marker {

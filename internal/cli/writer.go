@@ -11,7 +11,7 @@ func newWriteErrorTracker(writer io.Writer) *writeErrorTracker {
 	return &writeErrorTracker{writer: writer}
 }
 
-func (w *writeErrorTracker) Write(data []byte) (int, error) {
+func (w *writeErrorTracker) Write(content []byte) (int, error) {
 	if w.err != nil {
 		return 0, w.err
 	}
@@ -20,8 +20,8 @@ func (w *writeErrorTracker) Write(data []byte) (int, error) {
 		return 0, w.err
 	}
 
-	written, err := w.writer.Write(data)
-	if err == nil && written != len(data) {
+	written, err := w.writer.Write(content)
+	if err == nil && written != len(content) {
 		err = io.ErrShortWrite
 	}
 	if err != nil {

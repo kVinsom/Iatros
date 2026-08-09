@@ -4,10 +4,8 @@ package detection
 import (
 	"context"
 	"errors"
-	"path"
 	"slices"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/kVinsom/Iatros/internal/repositorypath"
 )
@@ -109,7 +107,7 @@ func (d MarkerDetector) Detect(ctx context.Context, files []string) ([]Technolog
 		if err := ctx.Err(); err != nil {
 			return results, err
 		}
-		if !validEvidencePath(file) {
+		if !repositorypath.IsValidFile(file) {
 			return results, ErrInvalidEvidencePath
 		}
 	}
@@ -162,33 +160,4 @@ func normalizedPaths(paths []string) []string {
 	paths = slices.Clone(paths)
 	slices.Sort(paths)
 	return slices.Compact(paths)
-}
-
-func validEvidencePath(value string) bool {
-	if !validEvidenceText(value) || strings.Contains(value, "\\") || path.IsAbs(value) ||
-		looksLikeWindowsPath(value) {
-		return false
-	}
-
-	cleaned := path.Clean(value)
-	return cleaned == value && cleaned != "." && cleaned != ".." &&
-		!strings.HasPrefix(cleaned, "../")
-}
-
-func validEvidenceText(value string) bool {
-	if value == "" || !utf8.ValidString(value) || strings.TrimSpace(value) != value {
-		return false
-	}
-	for _, character := range value {
-		if character < 0x20 || (character >= 0x7f && character <= 0x9f) {
-			return false
-		}
-	}
-	return true
-}
-
-func looksLikeWindowsPath(value string) bool {
-	return len(value) >= 2 &&
-		((value[0] >= 'A' && value[0] <= 'Z') || (value[0] >= 'a' && value[0] <= 'z')) &&
-		value[1] == ':'
 }
