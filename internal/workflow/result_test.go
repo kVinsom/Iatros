@@ -108,13 +108,12 @@ func TestResultValidateRejectsInvalidEnvelopes(t *testing.T) {
 		}},
 	}
 
-	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
 			result := validResult()
-			test.mutate(&result)
+			testCase.mutate(&result)
 			if err := result.Validate(); !errors.Is(err, ErrInvalidResult) {
 				t.Fatalf("Validate() error = %v, want ErrInvalidResult", err)
 			}

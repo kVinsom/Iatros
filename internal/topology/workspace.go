@@ -26,11 +26,11 @@ func (b Builder) associateWorkspaces(
 			return err
 		}
 		primary := nearestWorkspace(root, workspaceRoots)
-		state.value.PrimaryWorkspaceRoot = primary
+		state.project.PrimaryWorkspaceRoot = primary
 		if primary != "" {
-			state.value.WorkspaceRoots = append(state.value.WorkspaceRoots, primary)
-			workspaces[primary].value.ContainedProjects = append(
-				workspaces[primary].value.ContainedProjects, root,
+			state.project.WorkspaceRoots = append(state.project.WorkspaceRoots, primary)
+			workspaces[primary].workspace.ContainedProjects = append(
+				workspaces[primary].workspace.ContainedProjects, root,
 			)
 		}
 	}
@@ -43,35 +43,36 @@ func (b Builder) associateWorkspaces(
 
 	membershipIncomplete := model.Partial
 	declarationCount := 0
-	for _, value := range manifests {
+	for _, manifestDocument := range manifests {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if len(value.WorkspaceMembers) == 0 && len(value.WorkspaceExcludes) == 0 {
+		if len(manifestDocument.WorkspaceMembers) == 0 &&
+			len(manifestDocument.WorkspaceExcludes) == 0 {
 			continue
 		}
-		workspaceRoot := path.Dir(value.Path)
+		workspaceRoot := path.Dir(manifestDocument.Path)
 		state, exists := workspaces[workspaceRoot]
 		if !exists {
 			continue
 		}
-		declaredStart := len(state.value.DeclaredProjects)
-		excludedStart := len(state.value.ExcludedProjects)
+		declaredStart := len(state.workspace.DeclaredProjects)
+		excludedStart := len(state.workspace.ExcludedProjects)
 		for _, declarationSet := range []struct {
-			values  []string
-			exclude bool
+			patterns    []string
+			isExclusion bool
 		}{
-			{values: value.WorkspaceMembers},
-			{values: value.WorkspaceExcludes, exclude: true},
+			{patterns: manifestDocument.WorkspaceMembers},
+			{patterns: manifestDocument.WorkspaceExcludes, isExclusion: true},
 		} {
-			for _, member := range declarationSet.values {
+			for _, memberPattern := range declarationSet.patterns {
 				if declarationCount >= b.limits.MaxWorkspaceDeclarations {
 					model.addIssue(Issue{
-						Code: IssueDeclarationLimit, Path: value.Path,
+						Code: IssueDeclarationLimit, Path: manifestDocument.Path,
 						Message: "additional workspace declarations were omitted by the configured limit",
 					}, b.limits.MaxIssues)
 					applyManifestExclusions(
-						&state.value,
+						&state.workspace,
 						declaredStart,
 						excludedStart,
 					)
@@ -80,62 +81,69 @@ func (b Builder) associateWorkspaces(
 				}
 				declarationCount++
 
-				declaration, issue, err := b.resolveWorkspaceMember(
-					ctx,
-					workspaceRoot, value.Path, member, declarationSet.exclude,
-					projectRoots, membershipIncomplete,
-				)
+				declaration, issue, err := b.resolveWorkspaceMember(ctx, workspaceMemberRequest{
+					workspaceRoot:          workspaceRoot,
+					manifestPath:           manifestDocument.Path,
+					pattern:                memberPattern,
+					projectRoots:           projectRoots,
+					isExclusion:            declarationSet.isExclusion,
+					isMembershipIncomplete: membershipIncomplete,
+				})
 				if err != nil {
 					return err
 				}
-				state.value.Declarations = append(state.value.Declarations, declaration)
+				state.workspace.Declarations = append(state.workspace.Declarations, declaration)
 				if issue != nil {
 					model.addIssue(*issue, b.limits.MaxIssues)
 				}
 				if declaration.Exclude {
-					state.value.ExcludedProjects = append(
-						state.value.ExcludedProjects, declaration.ProjectRoots...,
+					state.workspace.ExcludedProjects = append(
+						state.workspace.ExcludedProjects, declaration.ProjectRoots...,
 					)
 					continue
 				}
-				state.value.DeclaredProjects = append(
-					state.value.DeclaredProjects, declaration.ProjectRoots...,
+				state.workspace.DeclaredProjects = append(
+					state.workspace.DeclaredProjects, declaration.ProjectRoots...,
 				)
 			}
 		}
-		applyManifestExclusions(&state.value, declaredStart, excludedStart)
+		applyManifestExclusions(&state.workspace, declaredStart, excludedStart)
 	}
 	associateDeclaredMemberships(projects, workspaces)
 	return nil
 }
 
+type workspaceMemberRequest struct {
+	workspaceRoot          string
+	manifestPath           string
+	pattern                string
+	projectRoots           []string
+	isExclusion            bool
+	isMembershipIncomplete bool
+}
+
 func (b Builder) resolveWorkspaceMember(
 	ctx context.Context,
-	workspaceRoot string,
-	manifestPath string,
-	member string,
-	exclude bool,
-	projectRoots []string,
-	partial bool,
+	request workspaceMemberRequest,
 ) (WorkspaceDeclaration, *Issue, error) {
 	declaration := WorkspaceDeclaration{
-		ManifestPath: manifestPath,
-		Pattern:      member,
-		Exclude:      exclude,
+		ManifestPath: request.manifestPath,
+		Pattern:      request.pattern,
+		Exclude:      request.isExclusion,
 		ProjectRoots: make([]string, 0),
 	}
-	pattern, resolution := repositoryPattern(workspaceRoot, member)
+	pattern, resolution := repositoryPattern(request.workspaceRoot, request.pattern)
 	if resolution != "" {
 		declaration.Resolution = resolution
 		if resolution == MemberOutsideRoot {
 			declaration.Pattern = outsideRootPattern
 			return declaration, &Issue{
-				Code: IssueMemberOutsideRoot, Path: manifestPath,
+				Code: IssueMemberOutsideRoot, Path: request.manifestPath,
 				Message: "a workspace declaration outside the selected repository was ignored",
 			}, nil
 		}
 		return declaration, &Issue{
-			Code: IssueMemberUnsupported, Path: manifestPath,
+			Code: IssueMemberUnsupported, Path: request.manifestPath,
 			Message: "a workspace declaration uses unsupported pattern semantics",
 		}, nil
 	}
@@ -144,11 +152,11 @@ func (b Builder) resolveWorkspaceMember(
 	if !valid {
 		declaration.Resolution = MemberUnsupported
 		return declaration, &Issue{
-			Code: IssueMemberUnsupported, Path: manifestPath,
+			Code: IssueMemberUnsupported, Path: request.manifestPath,
 			Message: "a workspace declaration uses unsupported pattern semantics",
 		}, nil
 	}
-	for _, projectRoot := range projectRoots {
+	for _, projectRoot := range request.projectRoots {
 		if err := ctx.Err(); err != nil {
 			return WorkspaceDeclaration{}, nil, err
 		}
@@ -159,7 +167,7 @@ func (b Builder) resolveWorkspaceMember(
 			declaration.MatchesTruncated = true
 			declaration.Resolution = MemberMatched
 			return declaration, &Issue{
-				Code: IssueMemberMatchLimit, Path: manifestPath,
+				Code: IssueMemberMatchLimit, Path: request.manifestPath,
 				Message: "additional workspace project matches were omitted by the configured limit",
 			}, nil
 		}
@@ -169,13 +177,13 @@ func (b Builder) resolveWorkspaceMember(
 		declaration.Resolution = MemberMatched
 		return declaration, nil, nil
 	}
-	if partial {
+	if request.isMembershipIncomplete {
 		declaration.Resolution = MemberIndeterminate
 		return declaration, nil, nil
 	}
 	declaration.Resolution = MemberUnmatched
 	return declaration, &Issue{
-		Code: IssueMemberUnmatched, Path: manifestPath,
+		Code: IssueMemberUnmatched, Path: request.manifestPath,
 		Message: "a workspace declaration did not match a known project boundary",
 	}, nil
 }
@@ -206,9 +214,9 @@ func associateDeclaredMemberships(
 	workspaces map[string]*workspaceState,
 ) {
 	for workspaceRoot, state := range workspaces {
-		for _, projectRoot := range state.value.DeclaredProjects {
-			projects[projectRoot].value.WorkspaceRoots = append(
-				projects[projectRoot].value.WorkspaceRoots, workspaceRoot,
+		for _, projectRoot := range state.workspace.DeclaredProjects {
+			projects[projectRoot].project.WorkspaceRoots = append(
+				projects[projectRoot].project.WorkspaceRoots, workspaceRoot,
 			)
 		}
 	}
@@ -218,7 +226,7 @@ func repositoryPattern(workspaceRoot, member string) (string, MemberResolution) 
 	lower := strings.ToLower(member)
 	if strings.Contains(member, "\\") || strings.Contains(lower, "://") ||
 		strings.HasPrefix(lower, "file:") || path.IsAbs(member) ||
-		repositorypath.HasWindowsDrivePrefix(member) {
+		looksLikeWindowsAbsolutePath(member) {
 		return "", MemberOutsideRoot
 	}
 	if strings.HasPrefix(member, "!") || strings.ContainsAny(member, "{}") ||
@@ -232,9 +240,16 @@ func repositoryPattern(workspaceRoot, member string) (string, MemberResolution) 
 	return pattern, ""
 }
 
-func containsExtendedGlob(value string) bool {
+func looksLikeWindowsAbsolutePath(candidate string) bool {
+	return len(candidate) >= 2 &&
+		((candidate[0] >= 'A' && candidate[0] <= 'Z') ||
+			(candidate[0] >= 'a' && candidate[0] <= 'z')) &&
+		candidate[1] == ':'
+}
+
+func containsExtendedGlob(pattern string) bool {
 	for _, prefix := range []string{"@(", "+(", "?(", "*(", "!("} {
-		if strings.Contains(value, prefix) {
+		if strings.Contains(pattern, prefix) {
 			return true
 		}
 	}

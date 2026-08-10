@@ -116,7 +116,7 @@ type ConfigurationEntry struct {
 	Sensitive bool                `json:"sensitive"`
 }
 
-// Normalized returns a detached project with deterministic ordering and non-nil collections.
+// Normalized returns a detached project value with deterministic collection ordering and non-nil slices.
 func (p Project) Normalized() Project {
 	p.Configuration = p.Configuration.Normalized()
 	p.Environments = normalizeSlice(p.Environments)
@@ -148,7 +148,7 @@ func (p Project) Normalized() Project {
 	return p
 }
 
-// Normalized returns detached configuration with deterministic ordering and a non-nil collection.
+// Normalized returns a detached configuration with deterministic ordering and a non-nil entry slice.
 func (c Configuration) Normalized() Configuration {
 	c.Entries = normalizeSlice(c.Entries)
 	slices.SortFunc(c.Entries, compareConfigurationEntries)

@@ -28,8 +28,8 @@ func IsExcludedDirectory(directory string) bool {
 	return containsExcludedDirectory(directory)
 }
 
-func containsExcludedDirectory(value string) bool {
-	for segment := range strings.SplitSeq(value, "/") {
+func containsExcludedDirectory(repositoryPath string) bool {
+	for segment := range strings.SplitSeq(repositoryPath, "/") {
 		if IsExcludedDirectoryName(segment) {
 			return true
 		}

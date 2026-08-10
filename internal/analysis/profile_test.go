@@ -54,7 +54,7 @@ func TestScalingProfileForNameReturnsCanonicalProfiles(t *testing.T) {
 		{name: ScalingProfileMonorepo, want: MonorepoScalingProfile()},
 		{name: ScalingProfileEnterprise, want: EnterpriseScalingProfile()},
 	}
-	for _, testCase := range testCases {
+	for _, testCase := range tests {
 		t.Run(string(testCase.name), func(t *testing.T) {
 			t.Parallel()
 
@@ -120,7 +120,7 @@ func TestScalingProfileValidateRejectsInvalidComponentsAndRelationships(t *testi
 			profile.CodeAnalysis.MaxFiles = profile.Discovery.MaxFiles + 1
 		}},
 	}
-	for _, testCase := range testCases {
+	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 

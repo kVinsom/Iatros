@@ -17,24 +17,18 @@ func IsValidDirectory(directoryPath string) bool {
 	return isValidRelativePath(directoryPath)
 }
 
-// Contains reports whether candidatePath is the directory itself or one of its descendants.
-func Contains(directoryPath, candidatePath string) bool {
-	if !IsValidDirectory(directoryPath) || !IsValidDirectory(candidatePath) {
-		return false
-	}
-	return directoryPath == "." || candidatePath == directoryPath ||
-		strings.HasPrefix(candidatePath, directoryPath+"/")
-}
-
 func isValidRelativePath(repositoryPath string) bool {
 	if !validPathText(repositoryPath) || strings.ContainsRune(repositoryPath, '\\') ||
-		path.IsAbs(repositoryPath) || HasWindowsDrivePrefix(repositoryPath) {
+		path.IsAbs(repositoryPath) || hasWindowsDrivePrefix(repositoryPath) {
 		return false
 	}
 
 	cleanedPath := path.Clean(repositoryPath)
-	return cleanedPath == repositoryPath && cleanedPath != ".." &&
-		!strings.HasPrefix(cleanedPath, "../")
+	if cleanedPath != repositoryPath || cleanedPath == ".." ||
+		strings.HasPrefix(cleanedPath, "../") {
+		return false
+	}
+	return true
 }
 
 func validPathText(repositoryPath string) bool {
@@ -50,8 +44,7 @@ func validPathText(repositoryPath string) bool {
 	return true
 }
 
-// HasWindowsDrivePrefix reports whether a value begins with an ASCII drive designator.
-func HasWindowsDrivePrefix(repositoryPath string) bool {
+func hasWindowsDrivePrefix(repositoryPath string) bool {
 	if len(repositoryPath) < 2 || repositoryPath[1] != ':' {
 		return false
 	}

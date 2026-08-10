@@ -33,88 +33,130 @@ func (b Builder) buildDependencies(
 	if identityRootLimit < len(projectRoots) {
 		identityRootLimit++
 	}
-	identities := make(map[identityKey]*identityTargets)
-	for _, root := range projectRoots {
-		state := projects[root]
-		for _, value := range state.manifests {
-			if err := ctx.Err(); err != nil {
+	identities, isComplete := indexProjectIdentities(
+		ctx,
+		projects,
+		projectRoots,
+		identityRootLimit,
+	)
+	if !isComplete {
+		return
+	}
+
+	for _, projectRoot := range projectRoots {
+		state := projects[projectRoot]
+		for _, manifestDocument := range state.manifests {
+			if !b.appendManifestDependencies(
+				ctx,
+				model,
+				projectRoot,
+				manifestDocument,
+				identities,
+			) {
 				return
 			}
-			identity := manifestIdentity(value)
+		}
+	}
+}
+
+func indexProjectIdentities(
+	ctx context.Context,
+	projects map[string]*projectState,
+	projectRoots []string,
+	maximumRoots int,
+) (map[identityKey]*identityTargets, bool) {
+	identities := make(map[identityKey]*identityTargets)
+	for _, projectRoot := range projectRoots {
+		state := projects[projectRoot]
+		for _, manifestDocument := range state.manifests {
+			if err := ctx.Err(); err != nil {
+				return nil, false
+			}
+			identity := manifestIdentity(manifestDocument)
 			if identity.name == "" {
 				continue
 			}
 			targets := identities[identity]
 			if targets == nil {
-				targets = &identityTargets{roots: make([]string, 0, min(identityRootLimit, 4))}
+				targets = &identityTargets{roots: make([]string, 0, min(maximumRoots, 4))}
 				identities[identity] = targets
 			}
-			targets.add(root, identityRootLimit)
+			targets.add(projectRoot, maximumRoots)
 		}
 	}
+	return identities, true
+}
 
-	for _, root := range projectRoots {
-		state := projects[root]
-		for _, value := range state.manifests {
-			if err := ctx.Err(); err != nil {
-				return
-			}
-			ecosystem := ecosystemFor(value.Format)
-			for _, declaration := range value.Dependencies {
-				if err := ctx.Err(); err != nil {
-					return
-				}
-				if len(model.Dependencies) >= b.limits.MaxDependencies {
-					model.addIssue(Issue{
-						Code: IssueDependencyLimit, Path: value.Path,
-						Message: "additional dependency declarations were omitted by the configured limit",
-					}, b.limits.MaxIssues)
-					return
-				}
-				identity := identities[identityKey{
-					ecosystem: ecosystem,
-					name:      normalizeIdentity(ecosystem, declaration.Name),
-				}]
-				var targetRoots []string
-				if identity != nil {
-					targetRoots = slices.Clone(identity.roots)
-				}
-				dependency := Dependency{
-					FromProject:    root,
-					ManifestPath:   value.Path,
-					Ecosystem:      ecosystem,
-					Name:           declaration.Name,
-					Constraint:     declaration.Constraint,
-					Scope:          string(declaration.Scope),
-					Indirect:       declaration.Indirect,
-					Optional:       declaration.Optional,
-					TargetProjects: make([]string, 0),
-				}
-				switch len(targetRoots) {
-				case 0:
-					dependency.Resolution = DependencyUnresolved
-				case 1:
-					dependency.Resolution = DependencyInternal
-					dependency.TargetProjects = targetRoots
-				default:
-					dependency.Resolution = DependencyAmbiguous
-					if len(targetRoots) > b.limits.MaxTargetsPerDependency {
-						dependency.TargetsTruncated = true
-						targetRoots = targetRoots[:b.limits.MaxTargetsPerDependency]
-						model.addIssue(Issue{
-							Code: IssueDependencyTargetLimit, Path: value.Path,
-							Message: "additional ambiguous dependency targets were omitted by the configured limit",
-						}, b.limits.MaxIssues)
-					}
-					dependency.TargetProjects = targetRoots
-					model.addIssue(Issue{
-						Code: IssueDependencyAmbiguous, Path: value.Path,
-						Message: "a dependency identity matches multiple repository projects",
-					}, b.limits.MaxIssues)
-				}
-				model.Dependencies = append(model.Dependencies, dependency)
-			}
+func (b Builder) appendManifestDependencies(
+	ctx context.Context,
+	model *Model,
+	projectRoot string,
+	manifestDocument manifest.Manifest,
+	identities map[identityKey]*identityTargets,
+) bool {
+	ecosystem := ecosystemFor(manifestDocument.Format)
+	for _, declaration := range manifestDocument.Dependencies {
+		if err := ctx.Err(); err != nil {
+			return false
 		}
+		if len(model.Dependencies) >= b.limits.MaxDependencies {
+			model.addIssue(Issue{
+				Code: IssueDependencyLimit, Path: manifestDocument.Path,
+				Message: "additional dependency declarations were omitted by the configured limit",
+			}, b.limits.MaxIssues)
+			return false
+		}
+		identity := identities[identityKey{
+			ecosystem: ecosystem,
+			name:      normalizeIdentity(ecosystem, declaration.Name),
+		}]
+		var targetRoots []string
+		if identity != nil {
+			targetRoots = slices.Clone(identity.roots)
+		}
+		dependency := Dependency{
+			FromProject:    projectRoot,
+			ManifestPath:   manifestDocument.Path,
+			Ecosystem:      ecosystem,
+			Name:           declaration.Name,
+			Constraint:     declaration.Constraint,
+			Scope:          string(declaration.Scope),
+			Indirect:       declaration.Indirect,
+			Optional:       declaration.Optional,
+			TargetProjects: make([]string, 0),
+		}
+		b.resolveDependencyTargets(model, &dependency, targetRoots)
+		model.Dependencies = append(model.Dependencies, dependency)
+	}
+	return true
+}
+
+func (b Builder) resolveDependencyTargets(
+	model *Model,
+	dependency *Dependency,
+	targetRoots []string,
+) {
+	switch len(targetRoots) {
+	case 0:
+		dependency.Resolution = DependencyUnresolved
+	case 1:
+		dependency.Resolution = DependencyInternal
+		dependency.TargetProjects = targetRoots
+	default:
+		dependency.Resolution = DependencyAmbiguous
+		if len(targetRoots) > b.limits.MaxTargetsPerDependency {
+			dependency.TargetsTruncated = true
+			targetRoots = targetRoots[:b.limits.MaxTargetsPerDependency]
+			model.addIssue(Issue{
+				Code: IssueDependencyTargetLimit, Path: dependency.ManifestPath,
+				Message: "additional ambiguous dependency targets were omitted by the configured limit",
+			}, b.limits.MaxIssues)
+		}
+		dependency.TargetProjects = targetRoots
+		model.addIssue(Issue{
+			Code: IssueDependencyAmbiguous, Path: dependency.ManifestPath,
+			Message: "a dependency identity matches multiple repository projects",
+		}, b.limits.MaxIssues)
 	}
 }
 
@@ -134,11 +176,11 @@ func (targets *identityTargets) add(root string, maximum int) {
 	targets.roots[index] = root
 }
 
-func manifestIdentity(value manifest.Manifest) identityKey {
-	ecosystem := ecosystemFor(value.Format)
-	name := value.Name
-	if value.Format == manifest.FormatGoModule {
-		name = value.Module
+func manifestIdentity(manifestDocument manifest.Manifest) identityKey {
+	ecosystem := ecosystemFor(manifestDocument.Format)
+	name := manifestDocument.Name
+	if manifestDocument.Format == manifest.FormatGoModule {
+		name = manifestDocument.Module
 	}
 	return identityKey{ecosystem: ecosystem, name: normalizeIdentity(ecosystem, name)}
 }
@@ -162,31 +204,31 @@ func ecosystemFor(format manifest.Format) string {
 	}
 }
 
-func normalizeIdentity(ecosystem, value string) string {
-	if strings.IndexFunc(value, unicode.IsSpace) >= 0 {
+func normalizeIdentity(ecosystem, identity string) string {
+	if strings.IndexFunc(identity, unicode.IsSpace) >= 0 {
 		return ""
 	}
 	switch ecosystem {
 	case "node", "php":
-		return strings.ToLower(value)
+		return strings.ToLower(identity)
 	case "python":
-		return normalizeDelimitedIdentity(value, func(character rune) bool {
+		return normalizeDelimitedIdentity(identity, func(character rune) bool {
 			return character == '-' || character == '_' || character == '.'
 		})
 	case "rust":
-		return normalizeDelimitedIdentity(value, func(character rune) bool {
+		return normalizeDelimitedIdentity(identity, func(character rune) bool {
 			return character == '-' || character == '_'
 		})
 	default:
-		return value
+		return identity
 	}
 }
 
-func normalizeDelimitedIdentity(value string, delimiter func(rune) bool) string {
+func normalizeDelimitedIdentity(identity string, isDelimiter func(rune) bool) string {
 	var normalized strings.Builder
 	previousDelimiter := false
-	for _, character := range strings.ToLower(value) {
-		if delimiter(character) {
+	for _, character := range strings.ToLower(identity) {
+		if isDelimiter(character) {
 			if !previousDelimiter {
 				normalized.WriteByte('-')
 			}
@@ -200,7 +242,7 @@ func normalizeDelimitedIdentity(value string, delimiter func(rune) bool) string 
 }
 
 func compareDependencies(left, right Dependency) int {
-	for _, values := range [][2]string{
+	for _, field := range [][2]string{
 		{left.FromProject, right.FromProject},
 		{left.ManifestPath, right.ManifestPath},
 		{left.Ecosystem, right.Ecosystem},
@@ -208,7 +250,7 @@ func compareDependencies(left, right Dependency) int {
 		{left.Scope, right.Scope},
 		{left.Constraint, right.Constraint},
 	} {
-		if compared := strings.Compare(values[0], values[1]); compared != 0 {
+		if compared := strings.Compare(field[0], field[1]); compared != 0 {
 			return compared
 		}
 	}

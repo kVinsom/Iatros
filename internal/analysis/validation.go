@@ -108,9 +108,9 @@ func validDiagnostics(status Status, diagnostics []Diagnostic) bool {
 	return true
 }
 
-func validFindingCode(value string) bool {
+func validFindingCode(code string) bool {
 	segments := 0
-	for segment := range strings.SplitSeq(value, ".") {
+	for segment := range strings.SplitSeq(code, ".") {
 		if !validLowerIdentifier(segment, "-_") {
 			return false
 		}
@@ -119,14 +119,14 @@ func validFindingCode(value string) bool {
 	return segments >= 2
 }
 
-func validLowerIdentifier(value, separators string) bool {
-	if !validText(value) ||
-		!lowerAlphaNumeric(value[0]) || !lowerAlphaNumeric(value[len(value)-1]) {
+func validLowerIdentifier(identifier, separators string) bool {
+	if !validText(identifier) ||
+		!lowerAlphaNumeric(identifier[0]) || !lowerAlphaNumeric(identifier[len(identifier)-1]) {
 		return false
 	}
 	previousSeparator := false
-	for index := range len(value) {
-		character := value[index]
+	for index := range len(identifier) {
+		character := identifier[index]
 		if lowerAlphaNumeric(character) {
 			previousSeparator = false
 			continue
@@ -144,14 +144,14 @@ func lowerAlphaNumeric(character byte) bool {
 		(character >= '0' && character <= '9')
 }
 
-func validDiagnosticCode(value string) bool {
-	if !validText(value) ||
-		!upperAlphaNumeric(value[0]) || !upperAlphaNumeric(value[len(value)-1]) {
+func validDiagnosticCode(code string) bool {
+	if !validText(code) ||
+		!upperAlphaNumeric(code[0]) || !upperAlphaNumeric(code[len(code)-1]) {
 		return false
 	}
 	previousSeparator := false
-	for index := range len(value) {
-		character := value[index]
+	for index := range len(code) {
+		character := code[index]
 		if upperAlphaNumeric(character) {
 			previousSeparator = false
 			continue
@@ -170,8 +170,8 @@ func validModelIssue(code, issuePath, message string) bool {
 		validPublicMessage(message)
 }
 
-func validPublicMessage(value string) bool {
-	return validText(value) && !messageContainsSensitiveLocation(value)
+func validPublicMessage(message string) bool {
+	return validText(message) && !messageContainsSensitiveLocation(message)
 }
 
 func messageContainsSensitiveLocation(message string) bool {
@@ -180,9 +180,9 @@ func messageContainsSensitiveLocation(message string) bool {
 		if unsafeMessageLocation(candidate) {
 			return true
 		}
-		for value := range strings.SplitSeq(candidate, "=") {
-			if value != candidate && unsafeMessageLocation(
-				strings.Trim(value, "()[]{}<>,;:'\""),
+		for fragment := range strings.SplitSeq(candidate, "=") {
+			if fragment != candidate && unsafeMessageLocation(
+				strings.Trim(fragment, "()[]{}<>,;:'\""),
 			) {
 				return true
 			}
@@ -191,10 +191,10 @@ func messageContainsSensitiveLocation(message string) bool {
 	return false
 }
 
-func unsafeMessageLocation(value string) bool {
-	lower := strings.ToLower(value)
-	return path.IsAbs(value) || repositorypath.HasWindowsDrivePrefix(value) ||
-		strings.ContainsRune(value, '\\') || strings.Contains(lower, "://") ||
+func unsafeMessageLocation(candidate string) bool {
+	lower := strings.ToLower(candidate)
+	return path.IsAbs(candidate) || looksLikeWindowsPath(candidate) ||
+		strings.ContainsRune(candidate, '\\') || strings.Contains(lower, "://") ||
 		strings.HasPrefix(lower, "file:")
 }
 
@@ -211,25 +211,32 @@ func validDiagnosticLevel(level string) bool {
 	return level == "info" || level == "warning" || level == "error"
 }
 
-func validSortedRelativePaths(values []string) bool {
-	if !strictlySortedStrings(values) {
+func validSortedRelativePaths(relativePaths []string) bool {
+	if !strictlySortedStrings(relativePaths) {
 		return false
 	}
-	for _, value := range values {
-		if !validRelativePath(value) {
+	for _, relativePath := range relativePaths {
+		if !validRelativePath(relativePath) {
 			return false
 		}
 	}
 	return true
 }
 
-func validRelativePath(value string) bool {
-	return repositorypath.IsValidFile(value)
+func validRelativePath(relativePath string) bool {
+	return repositorypath.IsValidFile(relativePath)
 }
 
-func strictlySortedStrings(values []string) bool {
-	for index := 1; index < len(values); index++ {
-		if values[index-1] >= values[index] {
+func looksLikeWindowsPath(candidate string) bool {
+	return len(candidate) >= 2 &&
+		((candidate[0] >= 'A' && candidate[0] <= 'Z') ||
+			(candidate[0] >= 'a' && candidate[0] <= 'z')) &&
+		candidate[1] == ':'
+}
+
+func strictlySortedStrings(entries []string) bool {
+	for index := 1; index < len(entries); index++ {
+		if entries[index-1] >= entries[index] {
 			return false
 		}
 	}
@@ -266,11 +273,11 @@ func compareStringSlices(left, right []string) int {
 	return len(left) - len(right)
 }
 
-func validText(value string) bool {
-	if value == "" || !utf8.ValidString(value) || strings.TrimSpace(value) != value {
+func validText(text string) bool {
+	if text == "" || !utf8.ValidString(text) || strings.TrimSpace(text) != text {
 		return false
 	}
-	for _, character := range value {
+	for _, character := range text {
 		if character < 0x20 || (character >= 0x7f && character <= 0x9f) {
 			return false
 		}

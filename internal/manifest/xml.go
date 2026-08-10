@@ -11,11 +11,11 @@ import (
 	"unicode/utf8"
 )
 
-func decodeStrictXML(data []byte, maximumDepth int, destination any) error {
-	if !utf8.Valid(data) {
+func decodeStrictXML(content []byte, maximumDepth int, destination any) error {
+	if !utf8.Valid(content) {
 		return errInvalidManifest
 	}
-	decoder := xml.NewDecoder(bytes.NewReader(data))
+	decoder := xml.NewDecoder(bytes.NewReader(content))
 	decoder.Strict = true
 	depth := 0
 	rootElements := 0
@@ -50,7 +50,7 @@ func decodeStrictXML(data []byte, maximumDepth int, destination any) error {
 		return errInvalidManifest
 	}
 
-	typedDecoder := xml.NewDecoder(bytes.NewReader(data))
+	typedDecoder := xml.NewDecoder(bytes.NewReader(content))
 	typedDecoder.Strict = true
 	if err := typedDecoder.Decode(destination); err != nil {
 		return err
@@ -91,45 +91,51 @@ type mavenDependency struct {
 }
 
 func (mavenParser) Parse(ctx context.Context, document Document, limits Limits) (Manifest, error) {
-	data, err := readDocument(ctx, document)
+	content, err := readDocument(ctx, document)
 	if err != nil {
 		return Manifest{}, err
 	}
-	var value mavenProject
-	if err := decodeStrictXML(data, limits.MaxNestingDepth, &value); err != nil {
+	var parsedDocument mavenProject
+	if err := decodeStrictXML(content, limits.MaxNestingDepth, &parsedDocument); err != nil {
 		return Manifest{}, err
 	}
 
-	groupID := firstNonEmpty(strings.TrimSpace(value.GroupID), strings.TrimSpace(value.Parent.GroupID))
-	artifactID := strings.TrimSpace(value.ArtifactID)
-	version := firstNonEmpty(strings.TrimSpace(value.Version), strings.TrimSpace(value.Parent.Version))
+	groupID := firstNonEmpty(
+		strings.TrimSpace(parsedDocument.GroupID),
+		strings.TrimSpace(parsedDocument.Parent.GroupID),
+	)
+	artifactID := strings.TrimSpace(parsedDocument.ArtifactID)
+	version := firstNonEmpty(
+		strings.TrimSpace(parsedDocument.Version),
+		strings.TrimSpace(parsedDocument.Parent.Version),
+	)
 	name := artifactID
 	if groupID != "" && artifactID != "" {
 		name = groupID + ":" + artifactID
 	}
 	manifest := Manifest{
-		Name: name, Version: version, WorkspaceDeclared: len(value.Modules) != 0,
+		Name: name, Version: version, WorkspaceDeclared: len(parsedDocument.Modules) != 0,
 	}
-	for _, member := range value.Modules {
+	for _, member := range parsedDocument.Modules {
 		manifest.WorkspaceMembers = append(manifest.WorkspaceMembers, strings.TrimSpace(member))
 	}
-	if release := strings.TrimSpace(value.Properties.CompilerRelease); release != "" {
+	if release := strings.TrimSpace(parsedDocument.Properties.CompilerRelease); release != "" {
 		manifest.Constraints = append(manifest.Constraints, Constraint{
 			Name: "java", Value: release, Scope: ScopeBuild,
 		})
 	} else {
-		if source := strings.TrimSpace(value.Properties.CompilerSource); source != "" {
+		if source := strings.TrimSpace(parsedDocument.Properties.CompilerSource); source != "" {
 			manifest.Constraints = append(manifest.Constraints, Constraint{
 				Name: "java-source", Value: source, Scope: ScopeBuild,
 			})
 		}
-		if target := strings.TrimSpace(value.Properties.CompilerTarget); target != "" {
+		if target := strings.TrimSpace(parsedDocument.Properties.CompilerTarget); target != "" {
 			manifest.Constraints = append(manifest.Constraints, Constraint{
 				Name: "java-target", Value: target, Scope: ScopeBuild,
 			})
 		}
 	}
-	for _, dependency := range value.Dependencies {
+	for _, dependency := range parsedDocument.Dependencies {
 		group := strings.TrimSpace(dependency.GroupID)
 		artifact := strings.TrimSpace(dependency.ArtifactID)
 		if group == "" || artifact == "" {
@@ -156,8 +162,8 @@ func (mavenParser) Parse(ctx context.Context, document Document, limits Limits) 
 	return manifest, nil
 }
 
-func mavenScope(value string) (Scope, error) {
-	switch value {
+func mavenScope(scope string) (Scope, error) {
+	switch scope {
 	case "", "compile", "runtime":
 		return ScopeRuntime, nil
 	case "test":

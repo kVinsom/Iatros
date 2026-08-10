@@ -338,8 +338,7 @@ The approval and execution semantics remain proposed until [ADR-0004](decisions/
 
 | Concept | Intended owner | Notes |
 | --- | --- | --- |
-| Canonical project model | `internal/project` | Private provider-neutral schema `1.0`; repository evidence uses the distinct `Boundary` type. |
-| Static code-analysis facts | `internal/codeanalysis` | Private normalized schema `1.0`; analyzer implementations and a CLI report remain pending. |
+| Canonical project model | `internal/project` | Private, provider-neutral schema `1.0` for projects, environments, services, dependencies, and configuration; repository boundary evidence remains a distinct `Boundary` type. |
 | Normalized manifest facts | `internal/manifest` | Private direct declarations mapped through the topology report contract. |
 | Repository discovery | `internal/analysis` and `internal/repositoryignore` | Bounded local inventory, Git-style ignore rules, large-file controls, and nested-repository isolation. |
 | Repository topology | `internal/topology` and `internal/analysis` | Private associated model plus versioned CLI schema `0.3`; no network API contract yet. |

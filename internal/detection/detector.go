@@ -107,7 +107,7 @@ func (d MarkerDetector) Detect(ctx context.Context, files []string) ([]Technolog
 		if err := ctx.Err(); err != nil {
 			return results, err
 		}
-		if !validEvidencePath(file) {
+		if !repositorypath.IsValidFile(file) {
 			return results, ErrInvalidEvidencePath
 		}
 	}
@@ -160,8 +160,4 @@ func normalizedPaths(paths []string) []string {
 	paths = slices.Clone(paths)
 	slices.Sort(paths)
 	return slices.Compact(paths)
-}
-
-func validEvidencePath(value string) bool {
-	return repositorypath.IsValidFile(value)
 }
