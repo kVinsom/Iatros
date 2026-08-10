@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/kVinsom/Iatros/internal/manifest"
+	"github.com/kVinsom/Iatros/internal/repositorypath"
 	"github.com/kVinsom/Iatros/internal/topology"
 )
 
@@ -78,7 +79,7 @@ func validTopologyProjects(values []TopologyProject) bool {
 			!validSortedTopologyPaths(value.WorkspaceRoots) ||
 			(value.PrimaryWorkspaceRoot != "" &&
 				(!slices.Contains(value.WorkspaceRoots, value.PrimaryWorkspaceRoot) ||
-					!topologyPathContains(value.PrimaryWorkspaceRoot, value.Root))) ||
+					!repositorypath.Contains(value.PrimaryWorkspaceRoot, value.Root))) ||
 			!validTopologyMarkers(value.Markers) || !validTopologyComponents(value.Components) ||
 			(index > 0 && values[index-1].Root >= value.Root) {
 			return false
@@ -375,10 +376,6 @@ func topologyPathsEqualSet(values []string, expected map[string]struct{}) bool {
 	return true
 }
 
-func topologyPathContains(root, candidate string) bool {
-	return root == "." || candidate == root || strings.HasPrefix(candidate, root+"/")
-}
-
 func validTopologyKind(value string) bool {
 	return value == "code" || value == "infrastructure" || value == "mixed"
 }
@@ -454,7 +451,7 @@ func validTopologyPattern(workspaceRoot, value string) bool {
 	}
 	lower := strings.ToLower(value)
 	if !validText(value) || strings.Contains(value, "\\") || path.IsAbs(value) ||
-		looksLikeWindowsPath(value) || strings.Contains(lower, "://") ||
+		repositorypath.HasWindowsDrivePrefix(value) || strings.Contains(lower, "://") ||
 		strings.HasPrefix(lower, "file:") {
 		return false
 	}

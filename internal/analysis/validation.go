@@ -4,6 +4,8 @@ import (
 	"path"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/kVinsom/Iatros/internal/repositorypath"
 )
 
 // Validate checks the semantic invariants required by the stable report contract.
@@ -191,7 +193,7 @@ func messageContainsSensitiveLocation(message string) bool {
 
 func unsafeMessageLocation(value string) bool {
 	lower := strings.ToLower(value)
-	return path.IsAbs(value) || looksLikeWindowsPath(value) ||
+	return path.IsAbs(value) || repositorypath.HasWindowsDrivePrefix(value) ||
 		strings.ContainsRune(value, '\\') || strings.Contains(lower, "://") ||
 		strings.HasPrefix(lower, "file:")
 }
@@ -222,20 +224,7 @@ func validSortedRelativePaths(values []string) bool {
 }
 
 func validRelativePath(value string) bool {
-	if !validText(value) || strings.Contains(value, "\\") ||
-		path.IsAbs(value) || looksLikeWindowsPath(value) {
-		return false
-	}
-
-	cleaned := path.Clean(value)
-	return cleaned == value && cleaned != "." && cleaned != ".." &&
-		!strings.HasPrefix(cleaned, "../")
-}
-
-func looksLikeWindowsPath(value string) bool {
-	return len(value) >= 2 &&
-		((value[0] >= 'A' && value[0] <= 'Z') || (value[0] >= 'a' && value[0] <= 'z')) &&
-		value[1] == ':'
+	return repositorypath.IsValidFile(value)
 }
 
 func strictlySortedStrings(values []string) bool {

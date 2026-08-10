@@ -2,18 +2,18 @@ package topology
 
 import (
 	"context"
-	"path"
 	"slices"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/kVinsom/Iatros/internal/manifest"
 	"github.com/kVinsom/Iatros/internal/project"
+	"github.com/kVinsom/Iatros/internal/repositorypath"
 )
 
 func validateInputs(
 	ctx context.Context,
-	projects []project.Project,
+	projects []project.Boundary,
 	workspaces []project.Workspace,
 	manifests []manifest.Manifest,
 	limits Limits,
@@ -183,20 +183,15 @@ func validConstraintScope(scope manifest.Scope) bool {
 }
 
 func validDirectory(value string) bool {
-	return value == "." || validFile(value)
+	return repositorypath.IsValidDirectory(value)
 }
 
 func validFile(value string) bool {
-	if !validText(value, len(value)) || strings.Contains(value, "\\") || path.IsAbs(value) ||
-		looksLikeWindowsPath(value) {
-		return false
-	}
-	cleaned := path.Clean(value)
-	return cleaned == value && cleaned != "." && cleaned != ".." && !strings.HasPrefix(cleaned, "../")
+	return repositorypath.IsValidFile(value)
 }
 
 func validIssuePath(value string) bool {
-	return value == "." || validFile(value)
+	return repositorypath.IsValidDirectory(value)
 }
 
 func validOptionalText(value string, maximum int) bool {
@@ -250,11 +245,6 @@ func validIssueCode(value string) bool {
 		}
 	}
 	return true
-}
-
-func looksLikeWindowsPath(value string) bool {
-	return len(value) >= 2 && ((value[0] >= 'A' && value[0] <= 'Z') ||
-		(value[0] >= 'a' && value[0] <= 'z')) && value[1] == ':'
 }
 
 func copyMarkers(values []project.Marker) []Marker {

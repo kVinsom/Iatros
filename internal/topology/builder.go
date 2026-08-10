@@ -187,7 +187,7 @@ type workspaceState struct {
 func (b Builder) buildProjects(
 	ctx context.Context,
 	model *Model,
-	boundaries []project.Project,
+	boundaries []project.Boundary,
 	manifests []manifest.Manifest,
 ) map[string]*projectState {
 	states := make(map[string]*projectState, len(boundaries))
@@ -312,10 +312,10 @@ func manifestDeclaresWorkspace(value manifest.Manifest) bool {
 
 func limitedProjects(
 	ctx context.Context,
-	values []project.Project,
+	values []project.Boundary,
 	maximum int,
-) ([]project.Project, error) {
-	return boundedLexicalTopN(ctx, values, maximum, func(value project.Project) string {
+) ([]project.Boundary, error) {
+	return boundedLexicalTopN(ctx, values, maximum, func(value project.Boundary) string {
 		return value.Root
 	})
 }
@@ -352,7 +352,7 @@ func limitedNestedRepositories(
 
 func validNestedRepositories(
 	values []string,
-	projects []project.Project,
+	projects []project.Boundary,
 	workspaces []project.Workspace,
 ) bool {
 	boundaries := make(map[string]struct{}, len(values))

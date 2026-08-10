@@ -9,6 +9,8 @@
 - [IATROS Product Contract](product/product-contract.md) — canonical product boundaries, lifecycle, invariants, and subscription responsibilities.
 - [PS-0001: Local repository analysis](product/0001-local-repository-analysis.md) — the first local-only, read-only CLI vertical slice.
 - [PS-0002: Stable core domain contracts](product/0002-core-domain-contracts.md) — implemented private models and schema-evolution rules shared by future workflows.
+- [PS-0003: Static code analysis contract](product/0003-static-code-analysis-contract.md) - normalized local source-analysis facts and resource boundaries.
+- [PS-0004: Dependency analysis contract](product/0004-dependency-analysis-contract.md) - approved local lock, build, version, graph, conflict, and license behavior.
 
 ## Architecture
 

@@ -1,4 +1,4 @@
-// Package project identifies provider-neutral project and workspace boundaries.
+// Package project owns canonical operational project contracts and repository boundaries.
 package project
 
 import (
@@ -6,8 +6,8 @@ import (
 	"errors"
 	"path"
 	"slices"
-	"strings"
-	"unicode/utf8"
+
+	"github.com/kVinsom/Iatros/internal/repositorypath"
 )
 
 const (
@@ -60,8 +60,8 @@ type Marker struct {
 	EvidenceTruncated bool
 }
 
-// Project identifies one code, infrastructure, or mixed project root.
-type Project struct {
+// Boundary identifies one code, infrastructure, or mixed project root.
+type Boundary struct {
 	Root          string
 	Kind          Kind
 	WorkspaceRoot string
@@ -76,7 +76,7 @@ type Workspace struct {
 
 // Model contains deterministic project and workspace boundaries.
 type Model struct {
-	Projects   []Project
+	Projects   []Boundary
 	Workspaces []Workspace
 	Partial    bool
 }
@@ -107,7 +107,7 @@ func (d Detector) Detect(ctx context.Context, snapshot Snapshot) (Model, error) 
 		if err := ctx.Err(); err != nil {
 			return empty, err
 		}
-		if !validRepositoryFile(file) {
+		if !repositorypath.IsValidFile(file) {
 			return empty, ErrInvalidSnapshot
 		}
 	}
@@ -148,37 +148,8 @@ func (d Detector) Detect(ctx context.Context, snapshot Snapshot) (Model, error) 
 
 func emptyModel(partial bool) Model {
 	return Model{
-		Projects:   make([]Project, 0),
+		Projects:   make([]Boundary, 0),
 		Workspaces: make([]Workspace, 0),
 		Partial:    partial,
 	}
-}
-
-func validRepositoryFile(value string) bool {
-	if !validText(value) || strings.Contains(value, "\\") || path.IsAbs(value) ||
-		looksLikeWindowsPath(value) {
-		return false
-	}
-
-	cleaned := path.Clean(value)
-	return cleaned == value && cleaned != "." && cleaned != ".." &&
-		!strings.HasPrefix(cleaned, "../")
-}
-
-func validText(value string) bool {
-	if value == "" || !utf8.ValidString(value) || strings.TrimSpace(value) != value {
-		return false
-	}
-	for _, character := range value {
-		if character < 0x20 || (character >= 0x7f && character <= 0x9f) {
-			return false
-		}
-	}
-	return true
-}
-
-func looksLikeWindowsPath(value string) bool {
-	return len(value) >= 2 &&
-		((value[0] >= 'A' && value[0] <= 'Z') || (value[0] >= 'a' && value[0] <= 'z')) &&
-		value[1] == ':'
 }

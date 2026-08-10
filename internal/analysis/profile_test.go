@@ -34,7 +34,10 @@ func TestBuiltInScalingProfilesAreValidAndMonotonic(t *testing.T) {
 			larger.Manifest.MaxFiles <= smaller.Manifest.MaxFiles ||
 			larger.Manifest.MaxTotalBytes <= smaller.Manifest.MaxTotalBytes ||
 			larger.Topology.MaxDependencies <= smaller.Topology.MaxDependencies ||
-			larger.Topology.MaxNestedRepositories <= smaller.Topology.MaxNestedRepositories {
+			larger.Topology.MaxNestedRepositories <= smaller.Topology.MaxNestedRepositories ||
+			larger.CodeAnalysis.MaxFiles <= smaller.CodeAnalysis.MaxFiles ||
+			larger.CodeAnalysis.MaxTotalBytes <= smaller.CodeAnalysis.MaxTotalBytes ||
+			larger.CodeAnalysis.MaxAPIEndpoints <= smaller.CodeAnalysis.MaxAPIEndpoints {
 			t.Fatalf("profile %q does not exceed %q in every primary capacity", larger.Name, smaller.Name)
 		}
 	}
@@ -43,7 +46,7 @@ func TestBuiltInScalingProfilesAreValidAndMonotonic(t *testing.T) {
 func TestScalingProfileForNameReturnsCanonicalProfiles(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	testCases := []struct {
 		name ScalingProfileName
 		want ScalingProfile
 	}{
@@ -51,17 +54,16 @@ func TestScalingProfileForNameReturnsCanonicalProfiles(t *testing.T) {
 		{name: ScalingProfileMonorepo, want: MonorepoScalingProfile()},
 		{name: ScalingProfileEnterprise, want: EnterpriseScalingProfile()},
 	}
-	for _, test := range tests {
-		test := test
-		t.Run(string(test.name), func(t *testing.T) {
+	for _, testCase := range testCases {
+		t.Run(string(testCase.name), func(t *testing.T) {
 			t.Parallel()
 
-			got, err := ScalingProfileForName(test.name)
+			got, err := ScalingProfileForName(testCase.name)
 			if err != nil {
 				t.Fatalf("ScalingProfileForName() error = %v", err)
 			}
-			if got != test.want {
-				t.Fatalf("ScalingProfileForName() = %+v, want %+v", got, test.want)
+			if got != testCase.want {
+				t.Fatalf("ScalingProfileForName() = %+v, want %+v", got, testCase.want)
 			}
 		})
 	}
@@ -78,7 +80,7 @@ func TestScalingProfileForNameRejectsUnknownName(t *testing.T) {
 func TestScalingProfileValidateRejectsInvalidComponentsAndRelationships(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	testCases := []struct {
 		name   string
 		mutate func(*ScalingProfile)
 	}{
@@ -98,6 +100,9 @@ func TestScalingProfileValidateRejectsInvalidComponentsAndRelationships(t *testi
 		{name: "topology", mutate: func(profile *ScalingProfile) {
 			profile.Topology.MaxDependencies = 0
 		}},
+		{name: "code analysis", mutate: func(profile *ScalingProfile) {
+			profile.CodeAnalysis.MaxTotalBytes = 0
+		}},
 		{name: "manifest exceeds discovery", mutate: func(profile *ScalingProfile) {
 			profile.Manifest.MaxFiles = profile.Discovery.MaxFiles + 1
 			profile.Topology.MaxManifests = profile.Manifest.MaxFiles
@@ -111,14 +116,16 @@ func TestScalingProfileValidateRejectsInvalidComponentsAndRelationships(t *testi
 		{name: "topology drops nested repositories", mutate: func(profile *ScalingProfile) {
 			profile.Topology.MaxNestedRepositories = profile.Discovery.MaxNestedRepositories - 1
 		}},
+		{name: "code analysis exceeds discovery", mutate: func(profile *ScalingProfile) {
+			profile.CodeAnalysis.MaxFiles = profile.Discovery.MaxFiles + 1
+		}},
 	}
-	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
 			profile := SmallScalingProfile()
-			test.mutate(&profile)
+			testCase.mutate(&profile)
 			if err := profile.Validate(); !errors.Is(err, ErrInvalidScalingProfile) {
 				t.Fatalf("Validate() error = %v, want ErrInvalidScalingProfile", err)
 			}

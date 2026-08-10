@@ -4,6 +4,8 @@ import (
 	"path"
 	"slices"
 	"strings"
+
+	"github.com/kVinsom/Iatros/internal/repositorypath"
 )
 
 const redactedReference = "[redacted-reference]"
@@ -143,7 +145,7 @@ func sanitizeReference(value string) string {
 }
 
 func looksLikeLocalReference(value string) bool {
-	return path.IsAbs(value) || looksLikeWindowsPath(value) ||
+	return path.IsAbs(value) || repositorypath.HasWindowsDrivePrefix(value) ||
 		strings.HasPrefix(value, `\\`) ||
 		strings.HasPrefix(value, "./") || strings.HasPrefix(value, "../") ||
 		strings.HasPrefix(value, "~/") || strings.HasPrefix(value, `.\`) ||

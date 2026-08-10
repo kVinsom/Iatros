@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/kVinsom/Iatros/internal/manifest"
+	"github.com/kVinsom/Iatros/internal/repositorypath"
 )
 
 func (b Builder) associateWorkspaces(
@@ -216,7 +217,8 @@ func associateDeclaredMemberships(
 func repositoryPattern(workspaceRoot, member string) (string, MemberResolution) {
 	lower := strings.ToLower(member)
 	if strings.Contains(member, "\\") || strings.Contains(lower, "://") ||
-		strings.HasPrefix(lower, "file:") || path.IsAbs(member) || looksLikeWindowsPath(member) {
+		strings.HasPrefix(lower, "file:") || path.IsAbs(member) ||
+		repositorypath.HasWindowsDrivePrefix(member) {
 		return "", MemberOutsideRoot
 	}
 	if strings.HasPrefix(member, "!") || strings.ContainsAny(member, "{}") ||

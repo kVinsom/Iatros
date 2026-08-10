@@ -183,15 +183,16 @@ An inbound API adapter is wired by the applicable composition root, such as `cmd
 
 ## 7. Domain map
 
-The following paths define capability ownership. Analysis orchestration, discovery, technology detection, project-boundary modeling, manifest analysis, topology association, readiness, and CLI reporting have initial implementations; other entries remain structural or target boundaries unless documented otherwise.
+The following paths define capability ownership. Analysis orchestration, discovery, technology detection, project-boundary modeling, manifest analysis, topology association, readiness, and CLI reporting have initial implementations. Static code analysis has an implemented normalized contract and resource profiles; its analyzers remain pending. Other entries remain structural or target boundaries unless documented otherwise.
 
 | Domain | Target responsibility |
 | --- | --- |
-| `internal/project` | Provider-neutral project and workspace boundary model consumed by topology analysis. |
+| `internal/project` | Schema-versioned canonical project contracts plus provider-neutral project and workspace boundary detection consumed by topology analysis. |
 | `internal/manifest` | Bounded, provider-neutral manifest parsing, normalization, resource profiles, and replaceable parser contracts. |
 | `internal/topology` | Deterministic project/component association, workspace relationships, and direct local dependency resolution. |
 | `internal/analysis` | Unified scaling profiles, bounded discovery, analysis orchestration, topology analysis, and versioned CLI report contracts. |
 | `internal/detection` | Evidence-based identification of languages, runtimes, dependency managers, and DevOps tooling. |
+| `internal/codeanalysis` | Normalized evidence-backed static facts and resource limits for services, frameworks, ports, APIs, configuration references, and runtime resources. |
 | `internal/readiness` | Deterministic repository-readiness rules and private findings. |
 | `internal/assistant` | Provider-neutral planning, context assembly, risk reasoning, and root-cause-analysis coordination. |
 | `internal/generation` | Creation of candidate delivery, infrastructure, documentation, and operational artifacts. |
@@ -337,7 +338,8 @@ The approval and execution semantics remain proposed until [ADR-0004](decisions/
 
 | Concept | Intended owner | Notes |
 | --- | --- | --- |
-| Canonical project model | `internal/project` | Private, provider-neutral representation; schema is TBD. |
+| Canonical project model | `internal/project` | Private provider-neutral schema `1.0`; repository evidence uses the distinct `Boundary` type. |
+| Static code-analysis facts | `internal/codeanalysis` | Private normalized schema `1.0`; analyzer implementations and a CLI report remain pending. |
 | Normalized manifest facts | `internal/manifest` | Private direct declarations mapped through the topology report contract. |
 | Repository discovery | `internal/analysis` and `internal/repositoryignore` | Bounded local inventory, Git-style ignore rules, large-file controls, and nested-repository isolation. |
 | Repository topology | `internal/topology` and `internal/analysis` | Private associated model plus versioned CLI schema `0.3`; no network API contract yet. |

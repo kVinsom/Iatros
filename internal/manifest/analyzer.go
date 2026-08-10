@@ -331,12 +331,7 @@ func ignoredManifestPath(file string) bool {
 }
 
 func validRepositoryPath(value string) bool {
-	if !validValue(value, len(value)) || strings.Contains(value, "\\") || path.IsAbs(value) ||
-		looksLikeWindowsPath(value) {
-		return false
-	}
-	cleaned := path.Clean(value)
-	return cleaned == value && cleaned != "." && cleaned != ".." && !strings.HasPrefix(cleaned, "../")
+	return repositorypath.IsValidFile(value)
 }
 
 func validValue(value string, maxBytes int) bool {
@@ -349,11 +344,6 @@ func validValue(value string, maxBytes int) bool {
 		}
 	}
 	return true
-}
-
-func looksLikeWindowsPath(value string) bool {
-	return len(value) >= 2 && ((value[0] >= 'A' && value[0] <= 'Z') ||
-		(value[0] >= 'a' && value[0] <= 'z')) && value[1] == ':'
 }
 
 type contextReader struct {

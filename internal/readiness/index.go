@@ -2,7 +2,6 @@ package readiness
 
 import (
 	"context"
-	"path"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -119,16 +118,10 @@ func recognizedLicense(lowerName string) bool {
 }
 
 func validRepositoryPath(value string, rootAllowed bool) bool {
-	if !validText(value) || strings.Contains(value, "\\") || path.IsAbs(value) ||
-		looksLikeWindowsPath(value) {
-		return false
+	if rootAllowed {
+		return repositorypath.IsValidDirectory(value)
 	}
-
-	cleaned := path.Clean(value)
-	if cleaned != value || cleaned == ".." || strings.HasPrefix(cleaned, "../") {
-		return false
-	}
-	return rootAllowed || cleaned != "."
+	return repositorypath.IsValidFile(value)
 }
 
 func validIdentifier(value, separators string) bool {
@@ -166,10 +159,4 @@ func validText(value string) bool {
 		}
 	}
 	return true
-}
-
-func looksLikeWindowsPath(value string) bool {
-	return len(value) >= 2 &&
-		((value[0] >= 'A' && value[0] <= 'Z') || (value[0] >= 'a' && value[0] <= 'z')) &&
-		value[1] == ':'
 }
