@@ -18,7 +18,8 @@ Repository size affects every analysis stage. Increasing only filesystem discove
 2. technology evidence retention;
 3. project and workspace boundary evidence;
 4. manifest reads, parsing, and retained declarations;
-5. topology association and retained relationships.
+5. topology association and retained relationships;
+6. static source analysis and retained code facts.
 
 Profiles are bounded resource budgets, not claims that every repository below a file count will complete. Repository shape, directory fan-out, manifest size, dependency density, storage performance, and host capacity also affect the result.
 
@@ -87,6 +88,27 @@ An Enterprise product entitlement does not itself grant filesystem, provider, ne
 | Bytes per retained value | 4 KiB | 64 KiB | 256 KiB |
 | Topology timeout | 3 seconds | 60 seconds | 5 minutes |
 
+### 3.4 Static code analysis
+
+| Limit | `small` | `monorepo` | `enterprise` |
+| --- | ---: | ---: | ---: |
+| Source files | 1,000 | 50,000 | 250,000 |
+| Bytes per source file | 1 MiB | 4 MiB | 8 MiB |
+| Total source bytes | 64 MiB | 2 GiB | 16 GiB |
+| Bytes per source line | 64 KiB | 256 KiB | 1 MiB |
+| Parser nesting depth | 256 | 512 | 1,024 |
+| Syntax nodes per file | 250,000 | 1,000,000 | 4,000,000 |
+| Services | 500 | 25,000 | 100,000 |
+| Frameworks | 500 | 25,000 | 100,000 |
+| Port bindings | 2,000 | 100,000 | 500,000 |
+| API endpoints | 10,000 | 500,000 | 5,000,000 |
+| Environment variables | 5,000 | 250,000 | 1,000,000 |
+| Resource dependencies | 5,000 | 250,000 | 1,000,000 |
+| Evidence locations per fact | 20 | 100 | 500 |
+| Diagnostics | 100 | 2,000 | 10,000 |
+| Bytes per retained text field | 8 KiB | 64 KiB | 256 KiB |
+| Static analysis timeout | 10 seconds | 2 minutes | 10 minutes |
+
 These values are release starting points, not immutable product ceilings. A later release may change values without changing the semantic meaning of a profile, but every shipped set must remain validated and covered by representative performance measurements.
 
 ## 4. Validation invariants
@@ -96,6 +118,7 @@ Every profile is rejected during composition unless:
 - its name is one of the three canonical identifiers;
 - every component-specific limit is positive and internally valid;
 - manifest file retention does not exceed discovered file retention;
+- static code-analysis file retention does not exceed discovered file retention;
 - topology can retain at least every analyzed manifest;
 - topology can retain at least every discovered nested repository boundary;
 - topology value retention is not smaller than manifest value retention;
@@ -163,4 +186,4 @@ Tests cover:
 - rejection of Enterprise by the default CLI before a service is invoked;
 - text and JSON profile reporting;
 - schema validation for unknown profile names;
-- existing discovery, parser, topology, readiness, cancellation, and safety behavior under the default profile.
+- existing discovery, parser, topology, code-analysis contract, readiness, cancellation, and safety behavior under the default profile.

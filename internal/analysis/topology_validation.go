@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/kVinsom/Iatros/internal/manifest"
+	"github.com/kVinsom/Iatros/internal/repositorypath"
 	"github.com/kVinsom/Iatros/internal/topology"
 )
 

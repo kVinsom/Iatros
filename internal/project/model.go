@@ -1,4 +1,4 @@
-// Package project identifies provider-neutral project and workspace boundaries.
+// Package project owns canonical operational project contracts and repository boundaries.
 package project
 
 import (

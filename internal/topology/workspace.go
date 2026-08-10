@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/kVinsom/Iatros/internal/manifest"
+	"github.com/kVinsom/Iatros/internal/repositorypath"
 )
 
 func (b Builder) associateWorkspaces(

@@ -183,7 +183,7 @@ An inbound API adapter is wired by the applicable composition root, such as `cmd
 
 ## 7. Domain map
 
-The following paths define capability ownership. Analysis orchestration, discovery, technology detection, project-boundary modeling, manifest analysis, topology association, readiness, and CLI reporting have initial implementations; other entries remain structural or target boundaries unless documented otherwise.
+The following paths define capability ownership. Analysis orchestration, discovery, technology detection, project-boundary modeling, manifest analysis, topology association, readiness, and CLI reporting have initial implementations. Static code analysis has an implemented normalized contract and resource profiles; its analyzers remain pending. Other entries remain structural or target boundaries unless documented otherwise.
 
 | Domain | Target responsibility |
 | --- | --- |
@@ -192,6 +192,7 @@ The following paths define capability ownership. Analysis orchestration, discove
 | `internal/topology` | Deterministic project/component association, workspace relationships, and direct local dependency resolution. |
 | `internal/analysis` | Unified scaling profiles, bounded discovery, analysis orchestration, topology analysis, and versioned CLI report contracts. |
 | `internal/detection` | Evidence-based identification of languages, runtimes, dependency managers, and DevOps tooling. |
+| `internal/codeanalysis` | Normalized evidence-backed static facts and resource limits for services, frameworks, ports, APIs, configuration references, and runtime resources. |
 | `internal/readiness` | Deterministic repository-readiness rules and private findings. |
 | `internal/assistant` | Provider-neutral planning, context assembly, risk reasoning, and root-cause-analysis coordination. |
 | `internal/generation` | Creation of candidate delivery, infrastructure, documentation, and operational artifacts. |

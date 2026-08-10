@@ -79,7 +79,7 @@ func (p Project) validateServices(
 		if !validText(service.Name) || !validIdentifier(service.Kind) {
 			return nil, invalidProject(field, "has an invalid name or kind")
 		}
-		if service.SourcePath != "" && !validRelativePath(service.SourcePath) {
+		if service.SourcePath != "" && !repositorypath.IsValidDirectory(service.SourcePath) {
 			return nil, invalidProject(field+".source_path", "must be a normalized project-relative path")
 		}
 		if err := service.Configuration.validate(field + ".configuration"); err != nil {
@@ -196,11 +196,11 @@ func (c Configuration) validate(field string) error {
 				return invalidProject(entryField, "contains an unsafe literal configuration value")
 			}
 		case ConfigurationSourceEnvironment:
-			if entry.Value != "" || !validConfigurationKey(entry.Reference) {
+			if entry.Value != "" || !validEnvironmentVariableName(entry.Reference) {
 				return invalidProject(entryField, "contains an invalid environment reference")
 			}
 		case ConfigurationSourceFile:
-			if entry.Value != "" || !validRelativePath(entry.Reference) {
+			if entry.Value != "" || !repositorypath.IsValidFile(entry.Reference) {
 				return invalidProject(entryField, "contains an invalid file reference")
 			}
 		case ConfigurationSourceSecret:
@@ -257,6 +257,25 @@ func validConfigurationKey(key string) bool {
 	}
 
 	return true
+}
+
+func validEnvironmentVariableName(value string) bool {
+	if value == "" || (value[0] != '_' && !asciiLetter(value[0])) {
+		return false
+	}
+	for index := 1; index < len(value); index++ {
+		character := value[index]
+		if character != '_' && !asciiLetter(character) &&
+			(character < '0' || character > '9') {
+			return false
+		}
+	}
+	return true
+}
+
+func asciiLetter(character byte) bool {
+	return (character >= 'a' && character <= 'z') ||
+		(character >= 'A' && character <= 'Z')
 }
 
 func alphaNumeric(character byte) bool {

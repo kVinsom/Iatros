@@ -6,6 +6,14 @@ These instructions apply to the entire repository.
 
 - Keep source code, comments, documentation, commit suggestions, diagnostics, and user-visible output in English.
 
+## Efficient repository context
+
+- Use `docs/README.md` as the documentation index and `docs/architecture/README.md` as the high-level system map.
+- Start each task with the smallest relevant product contract, architecture document, package, and Git diff instead of loading the entire repository.
+- Treat documentation as a navigation index rather than cached truth; verify behavior against the current source before making or reviewing changes.
+- Reuse context already established in the current task and refresh only files that changed or directly affect the requested capability.
+- Update the relevant contract or architecture document when implementation changes make the recorded context stale.
+
 ## Readability and naming
 
 - Avoid variable shadowing.
