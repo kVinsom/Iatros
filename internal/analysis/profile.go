@@ -10,6 +10,8 @@ import (
 	"github.com/kVinsom/Iatros/internal/devopsanalysis"
 	"github.com/kVinsom/Iatros/internal/manifest"
 	"github.com/kVinsom/Iatros/internal/project"
+	"github.com/kVinsom/Iatros/internal/remoteanalysis"
+	"github.com/kVinsom/Iatros/internal/systemmap"
 	"github.com/kVinsom/Iatros/internal/topology"
 )
 
@@ -32,7 +34,7 @@ const (
 	ScalingProfileEnterprise ScalingProfileName = "enterprise"
 )
 
-// ScalingProfile composes every resource limit used by the local analysis pipelines.
+// ScalingProfile composes every resource limit used by bounded analysis capabilities.
 type ScalingProfile struct {
 	Name           ScalingProfileName
 	Discovery      DiscoveryLimits
@@ -195,6 +197,32 @@ func (p ScalingProfile) Validate() error {
 	if p.Topology.MaxNestedRepositories < p.Discovery.MaxNestedRepositories {
 		return fmt.Errorf(
 			"%w: topology cannot retain every discovered nested repository",
+			ErrInvalidScalingProfile,
+		)
+	}
+	if p.SystemMap.MaxRepositories < p.RemoteAnalysis.MaxRepositories {
+		return fmt.Errorf(
+			"%w: system map cannot retain every remote repository",
+			ErrInvalidScalingProfile,
+		)
+	}
+	if p.SystemMap.MaxRepositories <= p.Discovery.MaxNestedRepositories {
+		return fmt.Errorf(
+			"%w: system map cannot retain the root and every nested repository",
+			ErrInvalidScalingProfile,
+		)
+	}
+	if p.SystemMap.MaxRelationships < p.RemoteAnalysis.MaxRelationships {
+		return fmt.Errorf(
+			"%w: system map cannot retain every remote repository relationship",
+			ErrInvalidScalingProfile,
+		)
+	}
+	if p.SystemMap.MaxEvidencePerFact < p.RemoteAnalysis.MaxEvidencePerFact ||
+		p.SystemMap.MaxDiagnostics < p.RemoteAnalysis.MaxDiagnostics ||
+		p.SystemMap.MaxTextBytes < p.RemoteAnalysis.MaxTextBytes {
+		return fmt.Errorf(
+			"%w: system map cannot preserve normalized remote-analysis facts",
 			ErrInvalidScalingProfile,
 		)
 	}

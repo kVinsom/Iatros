@@ -1,6 +1,6 @@
 # IATROS Scaling Profiles
 
-> **Status: implemented for local per-repository analysis.** `small` and `monorepo` are selectable in the local CLI. `enterprise` is a validated per-worker profile that an Enterprise composition may enable; the default local composition does not enable it. Distributed control-plane and worker-fleet scaling remain target behavior.
+> **Status: implemented for local per-repository analysis, system-map contracts, and remote-analysis contracts.** `small` and `monorepo` are selectable in the local CLI. `enterprise` is a validated per-worker profile that an Enterprise composition may enable; the default local composition does not enable it. Remote adapters, distributed control-plane behavior, and worker-fleet scaling remain target behavior.
 
 See also:
 
@@ -20,6 +20,8 @@ Repository size affects every analysis stage. Increasing only filesystem discove
 4. manifest reads, parsing, and retained declarations;
 5. topology association and retained relationships;
 6. static source analysis and retained code facts.
+7. normalized system-map entities, relationships, evidence, and diagnostics.
+8. remote provider requests, response bytes, repositories, relationships, evidence, and diagnostics.
 
 Profiles are bounded resource budgets, not claims that every repository below a file count will complete. Repository shape, directory fan-out, manifest size, dependency density, storage performance, and host capacity also affect the result.
 

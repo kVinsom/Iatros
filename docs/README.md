@@ -15,6 +15,8 @@
 
 ## Architecture
 
+- [System map architecture](architecture/system-map.md) - the provider-neutral aggregate model, identity, evidence, relationship, safety, and scaling rules.
+- [Remote and polyrepository analysis architecture](architecture/remote-analysis.md) - provider boundaries, immutable repository identity, polyrepository graphs, credentials, safety, and resource budgets.
 - [Manifest analysis architecture](architecture/manifest-analysis.md) - bounded content access, supported formats, normalized facts, parser safety, resource profiles, and backend replacement rules.
 - [DevOps stack analysis architecture](architecture/devops-analysis.md) - provider-neutral configuration facts, parser and correlation boundaries, limits, privacy, and staged format coverage.
 - [Repository topology architecture](architecture/topology.md) - project/component association, workspace membership, direct dependency resolution, limits, and partial-state rules.

@@ -16,6 +16,8 @@ Related documents:
 - [Repository discovery architecture](repository-discovery.md)
 - [Scaling profiles](scaling-profiles.md)
 - [Repository readiness architecture](readiness.md)
+- [System map architecture](system-map.md)
+- [Remote and polyrepository analysis architecture](remote-analysis.md)
 - [Architecture decision records](decisions/README.md)
 
 ## 1. Status and scope
