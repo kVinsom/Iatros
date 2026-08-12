@@ -17,15 +17,13 @@ func IsValidDirectory(directoryPath string) bool {
 	return isValidRelativePath(directoryPath)
 }
 
-// Contains reports whether candidate is a safe file contained by directory.
-func Contains(directory, candidate string) bool {
-	if !IsValidDirectory(directory) || !IsValidFile(candidate) {
+// Contains reports whether candidatePath is the directory itself or one of its descendants.
+func Contains(directoryPath, candidatePath string) bool {
+	if !IsValidDirectory(directoryPath) || !IsValidDirectory(candidatePath) {
 		return false
 	}
-	if directory == "." {
-		return true
-	}
-	return strings.HasPrefix(candidate, directory+"/")
+	return directoryPath == "." || candidatePath == directoryPath ||
+		strings.HasPrefix(candidatePath, directoryPath+"/")
 }
 
 func isValidRelativePath(repositoryPath string) bool {

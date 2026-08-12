@@ -14,8 +14,7 @@ The [IATROS Product Contract](product-contract.md) defines the final product bou
 | [PS-0002](0002-core-domain-contracts.md) | Stable core domain contracts | Approved | Implemented | 2026-08-03 |
 | [PS-0003](0003-static-code-analysis-contract.md) | Static code analysis contract | Approved | In progress | 2026-08-10 |
 | [PS-0004](0004-dependency-analysis-contract.md) | Dependency analysis contract | Approved | Not started | 2026-08-10 |
-| [PS-0005](0005-system-map-contract.md) | Unified system map contract | Approved | In progress | 2026-08-12 |
-| [PS-0006](0006-remote-polyrepo-analysis-contract.md) | Remote and polyrepository analysis contract | Approved | In progress | 2026-08-12 |
+| [PS-0005](0005-devops-stack-analysis-contract.md) | DevOps stack analysis contract | Approved | In progress | 2026-08-12 |
 
 ## Status model
 

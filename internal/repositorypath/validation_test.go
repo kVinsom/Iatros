@@ -37,28 +37,36 @@ func TestValidRepositoryPaths(t *testing.T) {
 	}
 }
 
-func TestContainsRepositoryFile(t *testing.T) {
+func TestContains(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name      string
-		directory string
-		candidate string
-		contains  bool
+		name          string
+		directoryPath string
+		candidatePath string
+		isContained   bool
 	}{
-		{name: "root contains file", directory: ".", candidate: "main.go", contains: true},
-		{name: "nested directory contains file", directory: "cmd/api", candidate: "cmd/api/main.go", contains: true},
-		{name: "similar prefix is outside", directory: "cmd/api", candidate: "cmd/api-v2/main.go"},
-		{name: "directory itself is not a file within itself", directory: "cmd/api", candidate: "cmd/api"},
-		{name: "parent traversal is rejected", directory: "cmd/api", candidate: "cmd/api/../../../secret"},
-		{name: "absolute directory is rejected", directory: "/cmd/api", candidate: "cmd/api/main.go"},
+		{name: "root itself", directoryPath: ".", candidatePath: ".", isContained: true},
+		{name: "root descendant", directoryPath: ".", candidatePath: "services/api/main.go", isContained: true},
+		{name: "directory itself", directoryPath: "services/api", candidatePath: "services/api", isContained: true},
+		{name: "nested file", directoryPath: "services/api", candidatePath: "services/api/main.go", isContained: true},
+		{name: "sibling", directoryPath: "services/api", candidatePath: "services/worker/main.go"},
+		{name: "prefix collision", directoryPath: "services/api", candidatePath: "services/api-v2/main.go"},
+		{name: "invalid directory", directoryPath: "../services", candidatePath: "services/api/main.go"},
+		{name: "invalid candidate", directoryPath: "services", candidatePath: "../main.go"},
 	}
+
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			if actual := Contains(testCase.directory, testCase.candidate); actual != testCase.contains {
-				t.Fatalf("Contains(%q, %q) = %t, want %t", testCase.directory,
-					testCase.candidate, actual, testCase.contains)
+			if actual := Contains(testCase.directoryPath, testCase.candidatePath); actual != testCase.isContained {
+				t.Fatalf(
+					"Contains(%q, %q) = %t, want %t",
+					testCase.directoryPath,
+					testCase.candidatePath,
+					actual,
+					testCase.isContained,
+				)
 			}
 		})
 	}
