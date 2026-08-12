@@ -36,3 +36,30 @@ func TestValidRepositoryPaths(t *testing.T) {
 		})
 	}
 }
+
+func TestContainsRepositoryFile(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name      string
+		directory string
+		candidate string
+		contains  bool
+	}{
+		{name: "root contains file", directory: ".", candidate: "main.go", contains: true},
+		{name: "nested directory contains file", directory: "cmd/api", candidate: "cmd/api/main.go", contains: true},
+		{name: "similar prefix is outside", directory: "cmd/api", candidate: "cmd/api-v2/main.go"},
+		{name: "directory itself is not a file within itself", directory: "cmd/api", candidate: "cmd/api"},
+		{name: "parent traversal is rejected", directory: "cmd/api", candidate: "cmd/api/../../../secret"},
+		{name: "absolute directory is rejected", directory: "/cmd/api", candidate: "cmd/api/main.go"},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			if actual := Contains(testCase.directory, testCase.candidate); actual != testCase.contains {
+				t.Fatalf("Contains(%q, %q) = %t, want %t", testCase.directory,
+					testCase.candidate, actual, testCase.contains)
+			}
+		})
+	}
+}

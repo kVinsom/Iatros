@@ -37,7 +37,11 @@ func TestBuiltInScalingProfilesAreValidAndMonotonic(t *testing.T) {
 			larger.Topology.MaxNestedRepositories <= smaller.Topology.MaxNestedRepositories ||
 			larger.CodeAnalysis.MaxFiles <= smaller.CodeAnalysis.MaxFiles ||
 			larger.CodeAnalysis.MaxTotalBytes <= smaller.CodeAnalysis.MaxTotalBytes ||
-			larger.CodeAnalysis.MaxAPIEndpoints <= smaller.CodeAnalysis.MaxAPIEndpoints {
+			larger.CodeAnalysis.MaxAPIEndpoints <= smaller.CodeAnalysis.MaxAPIEndpoints ||
+			larger.RemoteAnalysis.MaxRepositories <= smaller.RemoteAnalysis.MaxRepositories ||
+			larger.RemoteAnalysis.MaxProviderRequests <= smaller.RemoteAnalysis.MaxProviderRequests ||
+			larger.SystemMap.MaxRepositories <= smaller.SystemMap.MaxRepositories ||
+			larger.SystemMap.MaxRelationships <= smaller.SystemMap.MaxRelationships {
 			t.Fatalf("profile %q does not exceed %q in every primary capacity", larger.Name, smaller.Name)
 		}
 	}
@@ -54,7 +58,7 @@ func TestScalingProfileForNameReturnsCanonicalProfiles(t *testing.T) {
 		{name: ScalingProfileMonorepo, want: MonorepoScalingProfile()},
 		{name: ScalingProfileEnterprise, want: EnterpriseScalingProfile()},
 	}
-	for _, testCase := range tests {
+	for _, testCase := range testCases {
 		t.Run(string(testCase.name), func(t *testing.T) {
 			t.Parallel()
 
@@ -103,6 +107,12 @@ func TestScalingProfileValidateRejectsInvalidComponentsAndRelationships(t *testi
 		{name: "code analysis", mutate: func(profile *ScalingProfile) {
 			profile.CodeAnalysis.MaxTotalBytes = 0
 		}},
+		{name: "system map", mutate: func(profile *ScalingProfile) {
+			profile.SystemMap.MaxRelationships = 0
+		}},
+		{name: "remote analysis", mutate: func(profile *ScalingProfile) {
+			profile.RemoteAnalysis.MaxProviderRequests = 0
+		}},
 		{name: "manifest exceeds discovery", mutate: func(profile *ScalingProfile) {
 			profile.Manifest.MaxFiles = profile.Discovery.MaxFiles + 1
 			profile.Topology.MaxManifests = profile.Manifest.MaxFiles
@@ -119,8 +129,26 @@ func TestScalingProfileValidateRejectsInvalidComponentsAndRelationships(t *testi
 		{name: "code analysis exceeds discovery", mutate: func(profile *ScalingProfile) {
 			profile.CodeAnalysis.MaxFiles = profile.Discovery.MaxFiles + 1
 		}},
+		{name: "system map drops remote repositories", mutate: func(profile *ScalingProfile) {
+			profile.SystemMap.MaxRepositories = profile.RemoteAnalysis.MaxRepositories - 1
+		}},
+		{name: "system map drops a local repository", mutate: func(profile *ScalingProfile) {
+			profile.SystemMap.MaxRepositories = profile.Discovery.MaxNestedRepositories
+		}},
+		{name: "system map drops remote relationships", mutate: func(profile *ScalingProfile) {
+			profile.SystemMap.MaxRelationships = profile.RemoteAnalysis.MaxRelationships - 1
+		}},
+		{name: "system map truncates remote evidence", mutate: func(profile *ScalingProfile) {
+			profile.SystemMap.MaxEvidencePerFact = profile.RemoteAnalysis.MaxEvidencePerFact - 1
+		}},
+		{name: "system map truncates remote diagnostics", mutate: func(profile *ScalingProfile) {
+			profile.SystemMap.MaxDiagnostics = profile.RemoteAnalysis.MaxDiagnostics - 1
+		}},
+		{name: "system map truncates remote text", mutate: func(profile *ScalingProfile) {
+			profile.SystemMap.MaxTextBytes = profile.RemoteAnalysis.MaxTextBytes - 1
+		}},
 	}
-	for _, testCase := range tests {
+	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 

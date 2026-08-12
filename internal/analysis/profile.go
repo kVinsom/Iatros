@@ -9,6 +9,8 @@ import (
 	"github.com/kVinsom/Iatros/internal/detection"
 	"github.com/kVinsom/Iatros/internal/manifest"
 	"github.com/kVinsom/Iatros/internal/project"
+	"github.com/kVinsom/Iatros/internal/remoteanalysis"
+	"github.com/kVinsom/Iatros/internal/systemmap"
 	"github.com/kVinsom/Iatros/internal/topology"
 )
 
@@ -31,27 +33,31 @@ const (
 	ScalingProfileEnterprise ScalingProfileName = "enterprise"
 )
 
-// ScalingProfile composes every resource limit used by the local analysis pipelines.
+// ScalingProfile composes every resource limit used by bounded analysis capabilities.
 type ScalingProfile struct {
-	Name         ScalingProfileName
-	Discovery    DiscoveryLimits
-	Detection    detection.Limits
-	Project      project.Limits
-	Manifest     manifest.Limits
-	Topology     topology.Limits
-	CodeAnalysis codeanalysis.Limits
+	Name           ScalingProfileName
+	Discovery      DiscoveryLimits
+	Detection      detection.Limits
+	Project        project.Limits
+	Manifest       manifest.Limits
+	Topology       topology.Limits
+	CodeAnalysis   codeanalysis.Limits
+	RemoteAnalysis remoteanalysis.Limits
+	SystemMap      systemmap.Limits
 }
 
 // SmallScalingProfile returns the conservative default used by local Basic workflows.
 func SmallScalingProfile() ScalingProfile {
 	return ScalingProfile{
-		Name:         ScalingProfileSmall,
-		Discovery:    DefaultDiscoveryLimits(),
-		Detection:    detection.DefaultLimits(),
-		Project:      project.DefaultLimits(),
-		Manifest:     manifest.DefaultLimits(),
-		Topology:     topology.DefaultLimits(),
-		CodeAnalysis: codeanalysis.DefaultLimits(),
+		Name:           ScalingProfileSmall,
+		Discovery:      DefaultDiscoveryLimits(),
+		Detection:      detection.DefaultLimits(),
+		Project:        project.DefaultLimits(),
+		Manifest:       manifest.DefaultLimits(),
+		Topology:       topology.DefaultLimits(),
+		CodeAnalysis:   codeanalysis.DefaultLimits(),
+		RemoteAnalysis: remoteanalysis.DefaultLimits(),
+		SystemMap:      systemmap.DefaultLimits(),
 	}
 }
 
@@ -72,11 +78,13 @@ func MonorepoScalingProfile() ScalingProfile {
 			MaxNestedRepositories:  5_000,
 			Timeout:                time.Minute,
 		},
-		Detection:    detection.Limits{MaxEvidencePerTechnology: 100},
-		Project:      project.Limits{MaxEvidencePerMarker: 100},
-		Manifest:     manifest.LargeRepositoryLimits(),
-		Topology:     topology.LargeRepositoryLimits(),
-		CodeAnalysis: codeanalysis.LargeRepositoryLimits(),
+		Detection:      detection.Limits{MaxEvidencePerTechnology: 100},
+		Project:        project.Limits{MaxEvidencePerMarker: 100},
+		Manifest:       manifest.LargeRepositoryLimits(),
+		Topology:       topology.LargeRepositoryLimits(),
+		CodeAnalysis:   codeanalysis.LargeRepositoryLimits(),
+		RemoteAnalysis: remoteanalysis.LargeSystemLimits(),
+		SystemMap:      systemmap.LargeSystemLimits(),
 	}
 }
 
@@ -127,7 +135,9 @@ func EnterpriseScalingProfile() ScalingProfile {
 			MaxValueBytes:            256 * 1024,
 			Timeout:                  5 * time.Minute,
 		},
-		CodeAnalysis: codeanalysis.EnterpriseLimits(),
+		CodeAnalysis:   codeanalysis.EnterpriseLimits(),
+		RemoteAnalysis: remoteanalysis.EnterpriseLimits(),
+		SystemMap:      systemmap.EnterpriseLimits(),
 	}
 }
 
@@ -160,6 +170,8 @@ func (p ScalingProfile) Validate() error {
 		{name: "manifest", err: p.Manifest.Validate()},
 		{name: "topology", err: p.Topology.Validate()},
 		{name: "code analysis", err: p.CodeAnalysis.Validate()},
+		{name: "remote analysis", err: p.RemoteAnalysis.Validate()},
+		{name: "system map", err: p.SystemMap.Validate()},
 	}
 	for _, component := range components {
 		if component.err != nil {
@@ -186,6 +198,32 @@ func (p ScalingProfile) Validate() error {
 	if p.Topology.MaxNestedRepositories < p.Discovery.MaxNestedRepositories {
 		return fmt.Errorf(
 			"%w: topology cannot retain every discovered nested repository",
+			ErrInvalidScalingProfile,
+		)
+	}
+	if p.SystemMap.MaxRepositories < p.RemoteAnalysis.MaxRepositories {
+		return fmt.Errorf(
+			"%w: system map cannot retain every remote repository",
+			ErrInvalidScalingProfile,
+		)
+	}
+	if p.SystemMap.MaxRepositories <= p.Discovery.MaxNestedRepositories {
+		return fmt.Errorf(
+			"%w: system map cannot retain the root and every nested repository",
+			ErrInvalidScalingProfile,
+		)
+	}
+	if p.SystemMap.MaxRelationships < p.RemoteAnalysis.MaxRelationships {
+		return fmt.Errorf(
+			"%w: system map cannot retain every remote repository relationship",
+			ErrInvalidScalingProfile,
+		)
+	}
+	if p.SystemMap.MaxEvidencePerFact < p.RemoteAnalysis.MaxEvidencePerFact ||
+		p.SystemMap.MaxDiagnostics < p.RemoteAnalysis.MaxDiagnostics ||
+		p.SystemMap.MaxTextBytes < p.RemoteAnalysis.MaxTextBytes {
+		return fmt.Errorf(
+			"%w: system map cannot preserve normalized remote-analysis facts",
 			ErrInvalidScalingProfile,
 		)
 	}

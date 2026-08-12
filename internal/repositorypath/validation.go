@@ -17,6 +17,17 @@ func IsValidDirectory(directoryPath string) bool {
 	return isValidRelativePath(directoryPath)
 }
 
+// Contains reports whether candidate is a safe file contained by directory.
+func Contains(directory, candidate string) bool {
+	if !IsValidDirectory(directory) || !IsValidFile(candidate) {
+		return false
+	}
+	if directory == "." {
+		return true
+	}
+	return strings.HasPrefix(candidate, directory+"/")
+}
+
 func isValidRelativePath(repositoryPath string) bool {
 	if !validPathText(repositoryPath) || strings.ContainsRune(repositoryPath, '\\') ||
 		path.IsAbs(repositoryPath) || hasWindowsDrivePrefix(repositoryPath) {

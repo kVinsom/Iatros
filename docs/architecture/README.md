@@ -15,6 +15,8 @@ Related documents:
 - [Repository discovery architecture](repository-discovery.md)
 - [Scaling profiles](scaling-profiles.md)
 - [Repository readiness architecture](readiness.md)
+- [System map architecture](system-map.md)
+- [Remote and polyrepository analysis architecture](remote-analysis.md)
 - [Architecture decision records](decisions/README.md)
 
 ## 1. Status and scope
@@ -193,6 +195,8 @@ The following paths define capability ownership. Analysis orchestration, discove
 | `internal/analysis` | Unified scaling profiles, bounded discovery, analysis orchestration, topology analysis, and versioned CLI report contracts. |
 | `internal/detection` | Evidence-based identification of languages, runtimes, dependency managers, and DevOps tooling. |
 | `internal/codeanalysis` | Normalized evidence-backed static facts and resource limits for services, frameworks, ports, APIs, configuration references, and runtime resources. |
+| `internal/systemmap` | Provider-neutral aggregate identities and evidence-backed relationships across repositories, services, libraries, infrastructure, environments, owners, and external resources. |
+| `internal/remoteanalysis` | Sanitized GitHub, GitLab, and Bitbucket repository identity, immutable revisions, polyrepository relationships, diagnostics, and provider-access budgets. |
 | `internal/readiness` | Deterministic repository-readiness rules and private findings. |
 | `internal/assistant` | Provider-neutral planning, context assembly, risk reasoning, and root-cause-analysis coordination. |
 | `internal/generation` | Creation of candidate delivery, infrastructure, documentation, and operational artifacts. |
