@@ -11,10 +11,12 @@
 - [PS-0002: Stable core domain contracts](product/0002-core-domain-contracts.md) — implemented private models and schema-evolution rules shared by future workflows.
 - [PS-0003: Static code analysis contract](product/0003-static-code-analysis-contract.md) - normalized local source-analysis facts and resource boundaries.
 - [PS-0004: Dependency analysis contract](product/0004-dependency-analysis-contract.md) - approved local lock, build, version, graph, conflict, and license behavior.
+- [PS-0005: DevOps stack analysis contract](product/0005-devops-stack-analysis-contract.md) - normalized local Docker, Kubernetes, Helm, Terraform, delivery, GitOps, observability, and security facts.
 
 ## Architecture
 
 - [Manifest analysis architecture](architecture/manifest-analysis.md) - bounded content access, supported formats, normalized facts, parser safety, resource profiles, and backend replacement rules.
+- [DevOps stack analysis architecture](architecture/devops-analysis.md) - provider-neutral configuration facts, parser and correlation boundaries, limits, privacy, and staged format coverage.
 - [Repository topology architecture](architecture/topology.md) - project/component association, workspace membership, direct dependency resolution, limits, and partial-state rules.
 - [Repository discovery architecture](architecture/repository-discovery.md) - bounded Git-style ignore rules, large-file behavior, nested repositories, and submodule isolation.
 - [Scaling profiles](architecture/scaling-profiles.md) - unified small-repository, monorepo, and Enterprise per-worker budgets plus selection and validation rules.

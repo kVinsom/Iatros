@@ -37,7 +37,10 @@ func TestBuiltInScalingProfilesAreValidAndMonotonic(t *testing.T) {
 			larger.Topology.MaxNestedRepositories <= smaller.Topology.MaxNestedRepositories ||
 			larger.CodeAnalysis.MaxFiles <= smaller.CodeAnalysis.MaxFiles ||
 			larger.CodeAnalysis.MaxTotalBytes <= smaller.CodeAnalysis.MaxTotalBytes ||
-			larger.CodeAnalysis.MaxAPIEndpoints <= smaller.CodeAnalysis.MaxAPIEndpoints {
+			larger.CodeAnalysis.MaxAPIEndpoints <= smaller.CodeAnalysis.MaxAPIEndpoints ||
+			larger.DevOpsAnalysis.MaxFiles <= smaller.DevOpsAnalysis.MaxFiles ||
+			larger.DevOpsAnalysis.MaxTotalBytes <= smaller.DevOpsAnalysis.MaxTotalBytes ||
+			larger.DevOpsAnalysis.MaxKubernetesResources <= smaller.DevOpsAnalysis.MaxKubernetesResources {
 			t.Fatalf("profile %q does not exceed %q in every primary capacity", larger.Name, smaller.Name)
 		}
 	}
@@ -54,7 +57,7 @@ func TestScalingProfileForNameReturnsCanonicalProfiles(t *testing.T) {
 		{name: ScalingProfileMonorepo, want: MonorepoScalingProfile()},
 		{name: ScalingProfileEnterprise, want: EnterpriseScalingProfile()},
 	}
-	for _, testCase := range tests {
+	for _, testCase := range testCases {
 		t.Run(string(testCase.name), func(t *testing.T) {
 			t.Parallel()
 
@@ -103,6 +106,9 @@ func TestScalingProfileValidateRejectsInvalidComponentsAndRelationships(t *testi
 		{name: "code analysis", mutate: func(profile *ScalingProfile) {
 			profile.CodeAnalysis.MaxTotalBytes = 0
 		}},
+		{name: "devops analysis", mutate: func(profile *ScalingProfile) {
+			profile.DevOpsAnalysis.MaxTotalBytes = 0
+		}},
 		{name: "manifest exceeds discovery", mutate: func(profile *ScalingProfile) {
 			profile.Manifest.MaxFiles = profile.Discovery.MaxFiles + 1
 			profile.Topology.MaxManifests = profile.Manifest.MaxFiles
@@ -119,8 +125,11 @@ func TestScalingProfileValidateRejectsInvalidComponentsAndRelationships(t *testi
 		{name: "code analysis exceeds discovery", mutate: func(profile *ScalingProfile) {
 			profile.CodeAnalysis.MaxFiles = profile.Discovery.MaxFiles + 1
 		}},
+		{name: "devops analysis exceeds discovery", mutate: func(profile *ScalingProfile) {
+			profile.DevOpsAnalysis.MaxFiles = profile.Discovery.MaxFiles + 1
+		}},
 	}
-	for _, testCase := range tests {
+	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
