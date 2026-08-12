@@ -36,3 +36,38 @@ func TestValidRepositoryPaths(t *testing.T) {
 		})
 	}
 }
+
+func TestContains(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name          string
+		directoryPath string
+		candidatePath string
+		isContained   bool
+	}{
+		{name: "root itself", directoryPath: ".", candidatePath: ".", isContained: true},
+		{name: "root descendant", directoryPath: ".", candidatePath: "services/api/main.go", isContained: true},
+		{name: "directory itself", directoryPath: "services/api", candidatePath: "services/api", isContained: true},
+		{name: "nested file", directoryPath: "services/api", candidatePath: "services/api/main.go", isContained: true},
+		{name: "sibling", directoryPath: "services/api", candidatePath: "services/worker/main.go"},
+		{name: "prefix collision", directoryPath: "services/api", candidatePath: "services/api-v2/main.go"},
+		{name: "invalid directory", directoryPath: "../services", candidatePath: "services/api/main.go"},
+		{name: "invalid candidate", directoryPath: "services", candidatePath: "../main.go"},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			if actual := Contains(testCase.directoryPath, testCase.candidatePath); actual != testCase.isContained {
+				t.Fatalf(
+					"Contains(%q, %q) = %t, want %t",
+					testCase.directoryPath,
+					testCase.candidatePath,
+					actual,
+					testCase.isContained,
+				)
+			}
+		})
+	}
+}

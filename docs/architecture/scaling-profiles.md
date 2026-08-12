@@ -109,6 +109,32 @@ An Enterprise product entitlement does not itself grant filesystem, provider, ne
 | Bytes per retained text field | 8 KiB | 64 KiB | 256 KiB |
 | Static analysis timeout | 10 seconds | 2 minutes | 10 minutes |
 
+### 3.5 DevOps stack analysis
+
+| Limit | `small` | `monorepo` | `enterprise` |
+| --- | ---: | ---: | ---: |
+| Configuration files | 500 | 25,000 | 100,000 |
+| Bytes per configuration file | 2 MiB | 8 MiB | 16 MiB |
+| Total configuration bytes | 32 MiB | 2 GiB | 16 GiB |
+| Parser nesting depth | 128 | 256 | 512 |
+| Detected tools | 100 | 1,000 | 5,000 |
+| Container builds | 250 | 10,000 | 50,000 |
+| Compose services | 1,000 | 50,000 | 250,000 |
+| Kubernetes resources | 5,000 | 500,000 | 2,500,000 |
+| Helm charts | 250 | 10,000 | 50,000 |
+| Terraform blocks | 10,000 | 1,000,000 | 5,000,000 |
+| Pipelines | 250 | 10,000 | 50,000 |
+| Jobs per pipeline | 500 | 10,000 | 50,000 |
+| Job dependencies per pipeline | 5,000 | 250,000 | 1,000,000 |
+| GitOps resources | 2,000 | 250,000 | 1,000,000 |
+| Observability resources | 2,000 | 250,000 | 1,000,000 |
+| Security controls | 2,000 | 250,000 | 1,000,000 |
+| Nested values per fact | 500 | 10,000 | 50,000 |
+| Evidence locations per fact | 20 | 100 | 500 |
+| Diagnostics | 100 | 2,000 | 10,000 |
+| Bytes per retained text field | 16 KiB | 64 KiB | 256 KiB |
+| DevOps analysis timeout | 15 seconds | 2 minutes | 10 minutes |
+
 These values are release starting points, not immutable product ceilings. A later release may change values without changing the semantic meaning of a profile, but every shipped set must remain validated and covered by representative performance measurements.
 
 ## 4. Validation invariants
@@ -119,6 +145,7 @@ Every profile is rejected during composition unless:
 - every component-specific limit is positive and internally valid;
 - manifest file retention does not exceed discovered file retention;
 - static code-analysis file retention does not exceed discovered file retention;
+- DevOps-analysis file retention does not exceed discovered file retention;
 - topology can retain at least every analyzed manifest;
 - topology can retain at least every discovered nested repository boundary;
 - topology value retention is not smaller than manifest value retention;

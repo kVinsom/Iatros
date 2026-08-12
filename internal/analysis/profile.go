@@ -7,6 +7,7 @@ import (
 
 	"github.com/kVinsom/Iatros/internal/codeanalysis"
 	"github.com/kVinsom/Iatros/internal/detection"
+	"github.com/kVinsom/Iatros/internal/devopsanalysis"
 	"github.com/kVinsom/Iatros/internal/manifest"
 	"github.com/kVinsom/Iatros/internal/project"
 	"github.com/kVinsom/Iatros/internal/topology"
@@ -33,25 +34,27 @@ const (
 
 // ScalingProfile composes every resource limit used by the local analysis pipelines.
 type ScalingProfile struct {
-	Name         ScalingProfileName
-	Discovery    DiscoveryLimits
-	Detection    detection.Limits
-	Project      project.Limits
-	Manifest     manifest.Limits
-	Topology     topology.Limits
-	CodeAnalysis codeanalysis.Limits
+	Name           ScalingProfileName
+	Discovery      DiscoveryLimits
+	Detection      detection.Limits
+	Project        project.Limits
+	Manifest       manifest.Limits
+	Topology       topology.Limits
+	CodeAnalysis   codeanalysis.Limits
+	DevOpsAnalysis devopsanalysis.Limits
 }
 
 // SmallScalingProfile returns the conservative default used by local Basic workflows.
 func SmallScalingProfile() ScalingProfile {
 	return ScalingProfile{
-		Name:         ScalingProfileSmall,
-		Discovery:    DefaultDiscoveryLimits(),
-		Detection:    detection.DefaultLimits(),
-		Project:      project.DefaultLimits(),
-		Manifest:     manifest.DefaultLimits(),
-		Topology:     topology.DefaultLimits(),
-		CodeAnalysis: codeanalysis.DefaultLimits(),
+		Name:           ScalingProfileSmall,
+		Discovery:      DefaultDiscoveryLimits(),
+		Detection:      detection.DefaultLimits(),
+		Project:        project.DefaultLimits(),
+		Manifest:       manifest.DefaultLimits(),
+		Topology:       topology.DefaultLimits(),
+		CodeAnalysis:   codeanalysis.DefaultLimits(),
+		DevOpsAnalysis: devopsanalysis.DefaultLimits(),
 	}
 }
 
@@ -72,11 +75,12 @@ func MonorepoScalingProfile() ScalingProfile {
 			MaxNestedRepositories:  5_000,
 			Timeout:                time.Minute,
 		},
-		Detection:    detection.Limits{MaxEvidencePerTechnology: 100},
-		Project:      project.Limits{MaxEvidencePerMarker: 100},
-		Manifest:     manifest.LargeRepositoryLimits(),
-		Topology:     topology.LargeRepositoryLimits(),
-		CodeAnalysis: codeanalysis.LargeRepositoryLimits(),
+		Detection:      detection.Limits{MaxEvidencePerTechnology: 100},
+		Project:        project.Limits{MaxEvidencePerMarker: 100},
+		Manifest:       manifest.LargeRepositoryLimits(),
+		Topology:       topology.LargeRepositoryLimits(),
+		CodeAnalysis:   codeanalysis.LargeRepositoryLimits(),
+		DevOpsAnalysis: devopsanalysis.LargeRepositoryLimits(),
 	}
 }
 
@@ -127,7 +131,8 @@ func EnterpriseScalingProfile() ScalingProfile {
 			MaxValueBytes:            256 * 1024,
 			Timeout:                  5 * time.Minute,
 		},
-		CodeAnalysis: codeanalysis.EnterpriseLimits(),
+		CodeAnalysis:   codeanalysis.EnterpriseLimits(),
+		DevOpsAnalysis: devopsanalysis.EnterpriseLimits(),
 	}
 }
 
@@ -160,6 +165,7 @@ func (p ScalingProfile) Validate() error {
 		{name: "manifest", err: p.Manifest.Validate()},
 		{name: "topology", err: p.Topology.Validate()},
 		{name: "code analysis", err: p.CodeAnalysis.Validate()},
+		{name: "devops analysis", err: p.DevOpsAnalysis.Validate()},
 	}
 	for _, component := range components {
 		if component.err != nil {
@@ -176,6 +182,9 @@ func (p ScalingProfile) Validate() error {
 	}
 	if p.CodeAnalysis.MaxFiles > p.Discovery.MaxFiles {
 		return fmt.Errorf("%w: code analysis files exceed discovered files", ErrInvalidScalingProfile)
+	}
+	if p.DevOpsAnalysis.MaxFiles > p.Discovery.MaxFiles {
+		return fmt.Errorf("%w: devops analysis files exceed discovered files", ErrInvalidScalingProfile)
 	}
 	if p.Topology.MaxManifests < p.Manifest.MaxFiles {
 		return fmt.Errorf("%w: topology cannot retain every analyzed manifest", ErrInvalidScalingProfile)

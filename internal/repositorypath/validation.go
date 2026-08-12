@@ -17,6 +17,15 @@ func IsValidDirectory(directoryPath string) bool {
 	return isValidRelativePath(directoryPath)
 }
 
+// Contains reports whether candidatePath is the directory itself or one of its descendants.
+func Contains(directoryPath, candidatePath string) bool {
+	if !IsValidDirectory(directoryPath) || !IsValidDirectory(candidatePath) {
+		return false
+	}
+	return directoryPath == "." || candidatePath == directoryPath ||
+		strings.HasPrefix(candidatePath, directoryPath+"/")
+}
+
 func isValidRelativePath(repositoryPath string) bool {
 	if !validPathText(repositoryPath) || strings.ContainsRune(repositoryPath, '\\') ||
 		path.IsAbs(repositoryPath) || hasWindowsDrivePrefix(repositoryPath) {
