@@ -1,4 +1,4 @@
-# PS-0006: Remote and Polyrepository Analysis Contract
+# PS-0007: Remote and Polyrepository Analysis Contract
 
 - **Product status:** Approved
 - **Implementation status:** In progress
@@ -10,7 +10,7 @@
 Related documents:
 
 - [IATROS Product Contract](product-contract.md)
-- [Unified system map contract](0005-system-map-contract.md)
+- [Unified system map contract](0006-system-map-contract.md)
 - [Remote analysis architecture](../architecture/remote-analysis.md)
 - [Security architecture](../architecture/security.md)
 - [Scaling profiles](../architecture/scaling-profiles.md)

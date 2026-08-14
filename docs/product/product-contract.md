@@ -10,6 +10,7 @@
 Related documents:
 
 - [PS-0001: Local Repository Analysis](0001-local-repository-analysis.md)
+- [PS-0010: Doctor and Artifact Validation Contract](0010-doctor-validation-contract.md)
 - [IATROS target architecture](../architecture/README.md)
 - [Security architecture](../architecture/security.md)
 - [ADR-0002: Single provider-neutral core with optional subscriptions](../architecture/decisions/0002-single-core-with-optional-subscriptions.md)
@@ -21,7 +22,7 @@ IATROS is a provider-neutral DevOps workflow product that turns an explicitly sc
 
 This document is the canonical product-level contract. It defines the final product boundary, lifecycle, and subscription responsibilities without claiming that every capability is already implemented. Feature specifications define smaller user-visible increments and remain the authority for current runnable behavior.
 
-The first implementation is the Basic MVP. It remains local-only and independent from AI and hosted IATROS services. The initial feature specification is read-only repository analysis; deterministic Docker and DevOps architecture generation will be added through later approved Basic specifications. State-changing operations, continuous monitoring, AI assistance, private company plugins, and every broader capability remain target behavior until their own approved specifications, source, tests, and documentation prove availability.
+The first implementation is the Basic MVP. It remains local-only and independent from AI and hosted IATROS services. The runnable feature specification is read-only repository analysis. Internal deterministic artifact validation and Doctor auditing are implemented under PS-0010, while their CLI and lifecycle integration remains pending. Deterministic Docker and DevOps architecture generation will be added through later approved Basic specifications. State-changing operations, continuous monitoring, AI assistance, private company plugins, and every broader capability remain target behavior until their own approved specifications, source, tests, and documentation prove availability.
 
 ## 2. Primary users
 
@@ -442,7 +443,7 @@ Basic provides, as its feature specifications reach implementation:
 
 "All DevOps architecture" means every architecture category supported by released generators and installed open plugins. Basic must report an unsupported capability honestly instead of fabricating an artifact for an unknown provider or format.
 
-The Basic MVP is delivered incrementally. The current approved slice starts with local read-only Analyze; later Basic specifications add deterministic Plan, Generate, Validate, Deploy, Monitor, and Fix capabilities without adding an AI dependency.
+The Basic MVP is delivered incrementally. The current runnable slice starts with local read-only Analyze. The core now also contains deterministic artifact-validation and Doctor contracts awaiting product-surface integration; later Basic specifications add deterministic Plan, Generate, Deploy, Monitor, and Fix capabilities without adding an AI dependency.
 
 ### 10.2 Pro
 

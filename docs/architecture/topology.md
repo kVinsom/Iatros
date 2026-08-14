@@ -194,7 +194,7 @@ iatros topology [path] [--format text|json] [--profile small|monorepo]
 
 `path` defaults to `.` and accepts one existing local directory. Text is the default format. `small` is the default profile, while `monorepo` is explicit. The default CLI rejects `enterprise` before analysis; an Enterprise composition must enable that profile separately.
 
-The JSON envelope has schema version `0.3`, fixed `report_type: repository_topology`, and the active scaling profile. It remains independent from the separate `iatros analyze` schema `0.3`.
+The JSON envelope has schema version `0.3`, fixed `report_type: repository_topology`, and the active scaling profile. It remains independent from the separate `iatros analyze` schema `1.0`.
 
 ```json
 {

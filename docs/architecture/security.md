@@ -15,6 +15,17 @@ The internal topology builder performs no I/O. It resolves workspace declaration
 
 The topology CLI adapter validates the complete mapped report before rendering it. Malformed or unsafe internal output is replaced by a canonical failed report. Text and JSON expose no absolute target, timestamp, raw manifest content, or raw operating-system error, and all nested path collections remain repository-relative.
 
+The internal artifact-validation engine applies the same contract to existing and generated content. It reads each
+source once under byte and time limits, closes owned readers, retains only a SHA-256 digest, and normalizes source or
+validator failures without exposing underlying errors. Built-in parsers reject unsafe or excessive JSON, XML, YAML,
+HCL, Dockerfile, Compose, and Kubernetes inputs. The directory source owns a confined `os.Root`, rejects links, and
+verifies stable regular-file identity. A later effectful workflow still requires the execution, identity, policy,
+and authorization controls documented below.
+
+The internal Doctor consumes only validated normalized models. Missing and partial inputs cannot satisfy readiness,
+and absence rules are skipped unless their required evidence is complete. Rule failures become bounded diagnostics;
+findings retain provenance and use controlled, expiring exclusions.
+
 See also:
 
 - [IATROS Product Contract](../product/product-contract.md)
@@ -22,6 +33,8 @@ See also:
 - [Testing strategy](testing.md)
 - [Manifest analysis architecture](manifest-analysis.md)
 - [Repository topology architecture](topology.md)
+- [Artifact validation architecture](artifact-validation.md)
+- [IATROS Doctor architecture](doctor.md)
 - [ADR-0004: Control state-changing operations](decisions/0004-control-state-changing-operations.md)
 
 ## 1. Security objectives

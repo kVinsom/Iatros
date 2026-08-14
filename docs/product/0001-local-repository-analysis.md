@@ -129,7 +129,7 @@ iatros topology [flags] [path]
 
 Unknown flags, unsupported formats, or more than one positional path are usage errors.
 
-The commands use separate versioned envelopes. Both current schemas are `0.3` and record the active profile and skipped nested-repository count. `analyze` reads only bounded repository control files in addition to ordinary file metadata.
+The commands use separate versioned envelopes. Analysis schema `1.0` records unified findings; topology remains schema `0.3`. Both record the active profile and skipped nested-repository count. `analyze` reads only bounded repository control files in addition to ordinary file metadata.
 
 ### Output streams
 
@@ -173,11 +173,11 @@ A future opt-in policy such as `--fail-on` may map findings to a non-zero exit c
 
 ## 9. JSON envelope
 
-The current analysis schema version is `0.3`. Version `0.2` added the active profile; version `0.3` adds the skipped nested-repository count.
+The current analysis schema version is `1.0`. It retains the profile and skipped nested-repository count introduced before `1.0` and replaces the compact readiness finding shape with the required unified finding contract.
 
 ```json
 {
-  "schema_version": "0.3",
+  "schema_version": "1.0",
   "profile": "small",
   "status": "completed",
   "target": {
@@ -300,36 +300,66 @@ An implemented readiness rule may return:
 
 ```json
 {
-  "code": "repository.readme.missing",
-  "severity": "warning",
-  "message": "The repository does not contain a recognized README file.",
-  "evidence": [
-    "README file not found at the repository root"
+  "id": "repository.readme.missing.local",
+  "rule_id": "repository.readme.missing",
+  "title": "Root README is missing",
+  "description": "The repository does not contain a recognized root README file.",
+  "severity": "medium",
+  "confidence": "high",
+  "subjects": [
+    {
+      "kind": "repository",
+      "id": "local"
+    }
   ],
-  "remediation": "Add a root README that explains the project, its status, and verified usage."
+  "evidence": [
+    {
+      "kind": "observation",
+      "description": "A complete repository snapshot contains no recognized root README file."
+    }
+  ],
+  "provenance": {
+    "producer": "iatros.readiness",
+    "producer_version": "1.0",
+    "rule_version": "1.0",
+    "source": "repository_snapshot"
+  },
+  "risk": {
+    "level": "medium",
+    "likelihood": "likely",
+    "summary": "Contributors and operators may not have verified project instructions."
+  },
+  "recommendation": {
+    "summary": "Document the project at the repository root.",
+    "actions": [
+      "Add a root README that explains the project, its status, and verified usage."
+    ]
+  },
+  "disposition": "active"
 }
 ```
 
 ### Finding rules
 
-- `code` is a stable lowercase dotted identifier.
-- `severity` is `info`, `warning`, or `critical`.
-- `message` describes the observed condition without exaggeration.
-- `evidence` explains which local facts support the finding.
-- `remediation` proposes a bounded next action.
-- Finding evidence is sorted lexicographically without duplicates.
-- Findings are ordered by severity (`critical`, `warning`, then `info`), followed by code and evidence in lexical order; duplicate ordering keys are invalid.
+- `id` identifies the emitted problem and `rule_id` identifies the stable lowercase dotted rule.
+- `severity`, `confidence`, `risk`, and `likelihood` are separate required assessments.
+- structured `evidence` explains which bounded observations support the finding.
+- `provenance` identifies the producer and rule versions.
+- `recommendation` contains an outcome and at least one concrete action.
+- `disposition` is `active` or retains an auditable controlled exclusion.
+- Nested collections are normalized without duplicates.
+- Findings are ordered by severity and finding ID; duplicate finding IDs are invalid.
 - Findings never imply that an absent marker proves a system is insecure or broken.
 
 The internal readiness evaluator implements:
 
 | Code | Condition | Initial severity |
 | --- | --- | --- |
-| `repository.readme.missing` | No recognized root README. | `warning` |
-| `repository.license.missing` | No recognized root license file. | `info` |
-| `repository.gitignore.missing` | No root `.gitignore`. | `info` |
-| `quality.tests.not_detected` | No supported test marker is detected. | `warning` |
-| `delivery.ci.not_detected` | No supported CI configuration is detected. | `warning` |
+| `repository.readme.missing` | No recognized root README. | `medium` |
+| `repository.license.missing` | No recognized root license file. | `informational` |
+| `repository.gitignore.missing` | No root `.gitignore`. | `informational` |
+| `quality.tests.not_detected` | No supported test marker is detected. | `medium` |
+| `delivery.ci.not_detected` | No supported CI configuration is detected. | `medium` |
 
 These checks report marker presence, not the quality or correctness of the referenced files.
 
@@ -388,7 +418,7 @@ The implementation must:
 - prevent traversal outside the root;
 - skip VCS internals such as `.git/`;
 - never read values from `.env`, credentials, private keys, certificates, tokens, or known secret stores;
-- keep the active analysis schema `0.3` report path metadata-only except for bounded `.gitignore` and root `.gitmodules` control files; topology enrichment may additionally read only exact registered manifest filenames through a confined source and the active validated profile;
+- keep the active analysis schema `1.0` report path metadata-only except for bounded `.gitignore` and root `.gitmodules` control files; topology enrichment may additionally read only exact registered manifest filenames through a confined source and the active validated profile;
 - use relative evidence paths and avoid exposing local usernames or absolute paths;
 - enforce file-count, directory-count, directory-depth, per-directory entry, retained-issue, evidence, and execution-time limits;
 - return `partial` or `failed` with diagnostics when safe analysis cannot continue;

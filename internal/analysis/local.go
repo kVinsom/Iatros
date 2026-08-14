@@ -229,14 +229,8 @@ func reportEcosystems(technologies []detection.Technology) []Ecosystem {
 
 func reportFindings(findings []readiness.Finding) []Finding {
 	reportValues := make([]Finding, 0, len(findings))
-	for _, finding := range findings {
-		reportValues = append(reportValues, Finding{
-			Code:        finding.Code,
-			Severity:    string(finding.Severity),
-			Message:     finding.Message,
-			Evidence:    slices.Clone(finding.Evidence),
-			Remediation: finding.Remediation,
-		})
+	for _, readinessFinding := range findings {
+		reportValues = append(reportValues, readinessFinding.Normalized())
 	}
 	return reportValues
 }

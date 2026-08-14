@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/kVinsom/Iatros/internal/analysis"
+	"github.com/kVinsom/Iatros/internal/finding"
 )
 
 const expectedStubText = "IATROS Local Repository Analysis\n" +
@@ -213,10 +214,14 @@ func TestAnalyzeRendersCompleteTextReport(t *testing.T) {
 		"      - go.mod\n" +
 		"    Evidence truncated: false\n\n" +
 		"Findings:\n" +
-		"- [warning] repository.readme.missing: No README was detected.\n" +
+		"- [medium/high] repository.readme.missing: Root README is missing\n" +
+		"  Description: No root README was detected.\n" +
 		"  Evidence:\n" +
-		"    - README file not found at the repository root\n" +
-		"  Remediation: Add a root README.\n\n" +
+		"    - [observation] A complete scan found no README at the repository root.\n" +
+		"  Risk: [medium/likely] Contributors may not have verified project instructions.\n" +
+		"  Recommendation: Document the project at the repository root.\n" +
+		"    - Add a root README with verified usage instructions.\n" +
+		"  Disposition: active\n\n" +
 		"Diagnostics:\n" +
 		"- [info] IATROS_SCAN_NOTE: The scan used the local-only profile.\n"
 
@@ -528,11 +533,32 @@ func completedReport() analysis.Report {
 			Evidence: []string{"go.mod"},
 		}},
 		Findings: []analysis.Finding{{
-			Code:        "repository.readme.missing",
-			Severity:    "warning",
-			Message:     "No README was detected.",
-			Evidence:    []string{"README file not found at the repository root"},
-			Remediation: "Add a root README.",
+			ID:          "repository.readme.missing.local",
+			RuleID:      "repository.readme.missing",
+			Title:       "Root README is missing",
+			Description: "No root README was detected.",
+			Severity:    finding.SeverityMedium,
+			Confidence:  finding.ConfidenceHigh,
+			Subjects: []finding.Subject{{
+				Kind: "repository", ID: "local",
+			}},
+			Evidence: []finding.Evidence{{
+				Kind:        finding.EvidenceObservation,
+				Description: "A complete scan found no README at the repository root.",
+			}},
+			Provenance: finding.Provenance{
+				Producer: "iatros.readiness", ProducerVersion: "1.0",
+				RuleVersion: "1.0", Source: "repository_snapshot",
+			},
+			Risk: finding.Risk{
+				Level: finding.RiskMedium, Likelihood: finding.LikelihoodLikely,
+				Summary: "Contributors may not have verified project instructions.",
+			},
+			Recommendation: finding.Recommendation{
+				Summary: "Document the project at the repository root.",
+				Actions: []string{"Add a root README with verified usage instructions."},
+			},
+			Disposition: finding.DispositionActive,
 		}},
 		Diagnostics: []analysis.Diagnostic{{
 			Code:    "IATROS_SCAN_NOTE",

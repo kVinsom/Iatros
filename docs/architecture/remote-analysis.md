@@ -4,7 +4,7 @@
 
 See also:
 
-- [Remote and polyrepository product contract](../product/0006-remote-polyrepo-analysis-contract.md)
+- [Remote and polyrepository product contract](../product/0007-remote-polyrepo-analysis-contract.md)
 - [System map architecture](system-map.md)
 - [Security architecture](security.md)
 - [Scaling profiles](scaling-profiles.md)

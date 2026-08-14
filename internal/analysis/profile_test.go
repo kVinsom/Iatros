@@ -40,7 +40,13 @@ func TestBuiltInScalingProfilesAreValidAndMonotonic(t *testing.T) {
 			larger.CodeAnalysis.MaxAPIEndpoints <= smaller.CodeAnalysis.MaxAPIEndpoints ||
 			larger.DevOpsAnalysis.MaxFiles <= smaller.DevOpsAnalysis.MaxFiles ||
 			larger.DevOpsAnalysis.MaxTotalBytes <= smaller.DevOpsAnalysis.MaxTotalBytes ||
-			larger.DevOpsAnalysis.MaxKubernetesResources <= smaller.DevOpsAnalysis.MaxKubernetesResources {
+			larger.DevOpsAnalysis.MaxKubernetesResources <= smaller.DevOpsAnalysis.MaxKubernetesResources ||
+			larger.SystemMap.MaxServices <= smaller.SystemMap.MaxServices ||
+			larger.RemoteAnalysis.MaxRepositories <= smaller.RemoteAnalysis.MaxRepositories ||
+			larger.ChangeImpact.MaxChanges <= smaller.ChangeImpact.MaxChanges ||
+			larger.ArtifactValidation.MaxArtifacts <= smaller.ArtifactValidation.MaxArtifacts ||
+			larger.Doctor.MaxInputFacts <= smaller.Doctor.MaxInputFacts ||
+			larger.Findings.MaxFindings <= smaller.Findings.MaxFindings {
 			t.Fatalf("profile %q does not exceed %q in every primary capacity", larger.Name, smaller.Name)
 		}
 	}
@@ -109,6 +115,24 @@ func TestScalingProfileValidateRejectsInvalidComponentsAndRelationships(t *testi
 		{name: "devops analysis", mutate: func(profile *ScalingProfile) {
 			profile.DevOpsAnalysis.MaxTotalBytes = 0
 		}},
+		{name: "system map", mutate: func(profile *ScalingProfile) {
+			profile.SystemMap.MaxServices = 0
+		}},
+		{name: "remote analysis", mutate: func(profile *ScalingProfile) {
+			profile.RemoteAnalysis.MaxRepositories = 0
+		}},
+		{name: "change impact", mutate: func(profile *ScalingProfile) {
+			profile.ChangeImpact.MaxChanges = 0
+		}},
+		{name: "artifact validation", mutate: func(profile *ScalingProfile) {
+			profile.ArtifactValidation.MaxArtifacts = 0
+		}},
+		{name: "Doctor", mutate: func(profile *ScalingProfile) {
+			profile.Doctor.MaxRules = 0
+		}},
+		{name: "findings", mutate: func(profile *ScalingProfile) {
+			profile.Findings.MaxFindings = 0
+		}},
 		{name: "manifest exceeds discovery", mutate: func(profile *ScalingProfile) {
 			profile.Manifest.MaxFiles = profile.Discovery.MaxFiles + 1
 			profile.Topology.MaxManifests = profile.Manifest.MaxFiles
@@ -127,6 +151,22 @@ func TestScalingProfileValidateRejectsInvalidComponentsAndRelationships(t *testi
 		}},
 		{name: "devops analysis exceeds discovery", mutate: func(profile *ScalingProfile) {
 			profile.DevOpsAnalysis.MaxFiles = profile.Discovery.MaxFiles + 1
+		}},
+		{name: "impact drops services", mutate: func(profile *ScalingProfile) {
+			profile.ChangeImpact.MaxServices = profile.SystemMap.MaxServices + 1
+		}},
+		{name: "impact drops relationships", mutate: func(profile *ScalingProfile) {
+			profile.ChangeImpact.MaxRelationshipTraversals = profile.SystemMap.MaxRelationships - 1
+		}},
+		{name: "artifact validation exceeds DevOps bytes", mutate: func(profile *ScalingProfile) {
+			profile.ArtifactValidation.MaxArtifactBytes = profile.DevOpsAnalysis.MaxFileBytes + 1
+			profile.ArtifactValidation.MaxTotalBytes = profile.DevOpsAnalysis.MaxTotalBytes
+		}},
+		{name: "Doctor drops input facts", mutate: func(profile *ScalingProfile) {
+			profile.Doctor.MaxInputFacts = int(requiredDoctorInputFacts(*profile) - 1)
+		}},
+		{name: "Doctor drops repository findings", mutate: func(profile *ScalingProfile) {
+			profile.Doctor.MaxRepositoryFindings = profile.Findings.MaxFindings + 1
 		}},
 	}
 	for _, testCase := range testCases {
