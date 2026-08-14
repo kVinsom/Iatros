@@ -44,6 +44,8 @@ func TestBuiltInScalingProfilesAreValidAndMonotonic(t *testing.T) {
 			larger.SystemMap.MaxServices <= smaller.SystemMap.MaxServices ||
 			larger.RemoteAnalysis.MaxRepositories <= smaller.RemoteAnalysis.MaxRepositories ||
 			larger.ChangeImpact.MaxChanges <= smaller.ChangeImpact.MaxChanges ||
+			larger.ArtifactValidation.MaxArtifacts <= smaller.ArtifactValidation.MaxArtifacts ||
+			larger.Doctor.MaxInputFacts <= smaller.Doctor.MaxInputFacts ||
 			larger.Findings.MaxFindings <= smaller.Findings.MaxFindings {
 			t.Fatalf("profile %q does not exceed %q in every primary capacity", larger.Name, smaller.Name)
 		}
@@ -122,6 +124,12 @@ func TestScalingProfileValidateRejectsInvalidComponentsAndRelationships(t *testi
 		{name: "change impact", mutate: func(profile *ScalingProfile) {
 			profile.ChangeImpact.MaxChanges = 0
 		}},
+		{name: "artifact validation", mutate: func(profile *ScalingProfile) {
+			profile.ArtifactValidation.MaxArtifacts = 0
+		}},
+		{name: "Doctor", mutate: func(profile *ScalingProfile) {
+			profile.Doctor.MaxRules = 0
+		}},
 		{name: "findings", mutate: func(profile *ScalingProfile) {
 			profile.Findings.MaxFindings = 0
 		}},
@@ -149,6 +157,16 @@ func TestScalingProfileValidateRejectsInvalidComponentsAndRelationships(t *testi
 		}},
 		{name: "impact drops relationships", mutate: func(profile *ScalingProfile) {
 			profile.ChangeImpact.MaxRelationshipTraversals = profile.SystemMap.MaxRelationships - 1
+		}},
+		{name: "artifact validation exceeds DevOps bytes", mutate: func(profile *ScalingProfile) {
+			profile.ArtifactValidation.MaxArtifactBytes = profile.DevOpsAnalysis.MaxFileBytes + 1
+			profile.ArtifactValidation.MaxTotalBytes = profile.DevOpsAnalysis.MaxTotalBytes
+		}},
+		{name: "Doctor drops input facts", mutate: func(profile *ScalingProfile) {
+			profile.Doctor.MaxInputFacts = int(requiredDoctorInputFacts(*profile) - 1)
+		}},
+		{name: "Doctor drops repository findings", mutate: func(profile *ScalingProfile) {
+			profile.Doctor.MaxRepositoryFindings = profile.Findings.MaxFindings + 1
 		}},
 	}
 	for _, testCase := range testCases {

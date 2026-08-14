@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/kVinsom/Iatros/internal/artifactvalidation"
 	"github.com/kVinsom/Iatros/internal/changeimpact"
 	"github.com/kVinsom/Iatros/internal/codeanalysis"
 	"github.com/kVinsom/Iatros/internal/detection"
 	"github.com/kVinsom/Iatros/internal/devopsanalysis"
+	"github.com/kVinsom/Iatros/internal/doctor"
 	"github.com/kVinsom/Iatros/internal/finding"
 	"github.com/kVinsom/Iatros/internal/manifest"
 	"github.com/kVinsom/Iatros/internal/project"
@@ -38,35 +40,39 @@ const (
 
 // ScalingProfile composes every resource limit used by bounded analysis capabilities.
 type ScalingProfile struct {
-	Name           ScalingProfileName
-	Discovery      DiscoveryLimits
-	Detection      detection.Limits
-	Project        project.Limits
-	Manifest       manifest.Limits
-	Topology       topology.Limits
-	CodeAnalysis   codeanalysis.Limits
-	DevOpsAnalysis devopsanalysis.Limits
-	SystemMap      systemmap.Limits
-	RemoteAnalysis remoteanalysis.Limits
-	ChangeImpact   changeimpact.Limits
-	Findings       finding.Limits
+	Name               ScalingProfileName
+	Discovery          DiscoveryLimits
+	Detection          detection.Limits
+	Project            project.Limits
+	Manifest           manifest.Limits
+	Topology           topology.Limits
+	CodeAnalysis       codeanalysis.Limits
+	DevOpsAnalysis     devopsanalysis.Limits
+	SystemMap          systemmap.Limits
+	RemoteAnalysis     remoteanalysis.Limits
+	ChangeImpact       changeimpact.Limits
+	ArtifactValidation artifactvalidation.Limits
+	Doctor             doctor.Limits
+	Findings           finding.Limits
 }
 
 // SmallScalingProfile returns the conservative default used by local Basic workflows.
 func SmallScalingProfile() ScalingProfile {
 	return ScalingProfile{
-		Name:           ScalingProfileSmall,
-		Discovery:      DefaultDiscoveryLimits(),
-		Detection:      detection.DefaultLimits(),
-		Project:        project.DefaultLimits(),
-		Manifest:       manifest.DefaultLimits(),
-		Topology:       topology.DefaultLimits(),
-		CodeAnalysis:   codeanalysis.DefaultLimits(),
-		DevOpsAnalysis: devopsanalysis.DefaultLimits(),
-		SystemMap:      systemmap.DefaultLimits(),
-		RemoteAnalysis: remoteanalysis.DefaultLimits(),
-		ChangeImpact:   changeimpact.DefaultLimits(),
-		Findings:       finding.DefaultLimits(),
+		Name:               ScalingProfileSmall,
+		Discovery:          DefaultDiscoveryLimits(),
+		Detection:          detection.DefaultLimits(),
+		Project:            project.DefaultLimits(),
+		Manifest:           manifest.DefaultLimits(),
+		Topology:           topology.DefaultLimits(),
+		CodeAnalysis:       codeanalysis.DefaultLimits(),
+		DevOpsAnalysis:     devopsanalysis.DefaultLimits(),
+		SystemMap:          systemmap.DefaultLimits(),
+		RemoteAnalysis:     remoteanalysis.DefaultLimits(),
+		ChangeImpact:       changeimpact.DefaultLimits(),
+		ArtifactValidation: artifactvalidation.DefaultLimits(),
+		Doctor:             doctor.DefaultLimits(),
+		Findings:           finding.DefaultLimits(),
 	}
 }
 
@@ -87,16 +93,18 @@ func MonorepoScalingProfile() ScalingProfile {
 			MaxNestedRepositories:  5_000,
 			Timeout:                time.Minute,
 		},
-		Detection:      detection.Limits{MaxEvidencePerTechnology: 100},
-		Project:        project.Limits{MaxEvidencePerMarker: 100},
-		Manifest:       manifest.LargeRepositoryLimits(),
-		Topology:       topology.LargeRepositoryLimits(),
-		CodeAnalysis:   codeanalysis.LargeRepositoryLimits(),
-		DevOpsAnalysis: devopsanalysis.LargeRepositoryLimits(),
-		SystemMap:      systemmap.LargeSystemLimits(),
-		RemoteAnalysis: remoteanalysis.LargeSystemLimits(),
-		ChangeImpact:   changeimpact.LargeSystemLimits(),
-		Findings:       finding.LargeSystemLimits(),
+		Detection:          detection.Limits{MaxEvidencePerTechnology: 100},
+		Project:            project.Limits{MaxEvidencePerMarker: 100},
+		Manifest:           manifest.LargeRepositoryLimits(),
+		Topology:           topology.LargeRepositoryLimits(),
+		CodeAnalysis:       codeanalysis.LargeRepositoryLimits(),
+		DevOpsAnalysis:     devopsanalysis.LargeRepositoryLimits(),
+		SystemMap:          systemmap.LargeSystemLimits(),
+		RemoteAnalysis:     remoteanalysis.LargeSystemLimits(),
+		ChangeImpact:       changeimpact.LargeSystemLimits(),
+		ArtifactValidation: artifactvalidation.LargeRepositoryLimits(),
+		Doctor:             doctor.LargeSystemLimits(),
+		Findings:           finding.LargeSystemLimits(),
 	}
 }
 
@@ -147,12 +155,14 @@ func EnterpriseScalingProfile() ScalingProfile {
 			MaxValueBytes:            256 * 1024,
 			Timeout:                  5 * time.Minute,
 		},
-		CodeAnalysis:   codeanalysis.EnterpriseLimits(),
-		DevOpsAnalysis: devopsanalysis.EnterpriseLimits(),
-		SystemMap:      systemmap.EnterpriseLimits(),
-		RemoteAnalysis: remoteanalysis.EnterpriseLimits(),
-		ChangeImpact:   changeimpact.EnterpriseLimits(),
-		Findings:       finding.EnterpriseLimits(),
+		CodeAnalysis:       codeanalysis.EnterpriseLimits(),
+		DevOpsAnalysis:     devopsanalysis.EnterpriseLimits(),
+		SystemMap:          systemmap.EnterpriseLimits(),
+		RemoteAnalysis:     remoteanalysis.EnterpriseLimits(),
+		ChangeImpact:       changeimpact.EnterpriseLimits(),
+		ArtifactValidation: artifactvalidation.EnterpriseLimits(),
+		Doctor:             doctor.EnterpriseLimits(),
+		Findings:           finding.EnterpriseLimits(),
 	}
 }
 
@@ -189,6 +199,8 @@ func (p ScalingProfile) Validate() error {
 		{name: "system map", err: p.SystemMap.Validate()},
 		{name: "remote analysis", err: p.RemoteAnalysis.Validate()},
 		{name: "change impact", err: p.ChangeImpact.Validate()},
+		{name: "artifact validation", err: p.ArtifactValidation.Validate()},
+		{name: "doctor", err: p.Doctor.Validate()},
 		{name: "findings", err: p.Findings.Validate()},
 	}
 	for _, component := range components {
@@ -257,8 +269,43 @@ func (p ScalingProfile) Validate() error {
 			ErrInvalidScalingProfile,
 		)
 	}
+	if p.ArtifactValidation.MaxArtifactBytes > p.DevOpsAnalysis.MaxFileBytes ||
+		p.ArtifactValidation.MaxTotalBytes > p.DevOpsAnalysis.MaxTotalBytes {
+		return fmt.Errorf(
+			"%w: artifact validation exceeds DevOps configuration byte budgets",
+			ErrInvalidScalingProfile,
+		)
+	}
+	if p.Doctor.MaxRepositoryFindings > p.Findings.MaxFindings ||
+		uint64(p.Doctor.MaxInputFacts) < requiredDoctorInputFacts(p) {
+		return fmt.Errorf(
+			"%w: Doctor cannot retain all normalized profile inputs",
+			ErrInvalidScalingProfile,
+		)
+	}
 
 	return nil
+}
+
+func requiredDoctorInputFacts(profile ScalingProfile) uint64 {
+	codeFacts := uint64(profile.CodeAnalysis.MaxServices) + uint64(profile.CodeAnalysis.MaxFrameworks) +
+		uint64(profile.CodeAnalysis.MaxPortBindings) + uint64(profile.CodeAnalysis.MaxAPIEndpoints) +
+		uint64(profile.CodeAnalysis.MaxEnvironmentVariables) + uint64(profile.CodeAnalysis.MaxResourceDependencies) +
+		uint64(profile.CodeAnalysis.MaxDiagnostics)
+	devOpsFacts := uint64(profile.DevOpsAnalysis.MaxTools) + uint64(profile.DevOpsAnalysis.MaxContainerBuilds) +
+		uint64(profile.DevOpsAnalysis.MaxComposeServices) + uint64(profile.DevOpsAnalysis.MaxKubernetesResources) +
+		uint64(profile.DevOpsAnalysis.MaxHelmCharts) + uint64(profile.DevOpsAnalysis.MaxTerraformBlocks) +
+		uint64(profile.DevOpsAnalysis.MaxPipelines) + uint64(profile.DevOpsAnalysis.MaxGitOpsResources) +
+		uint64(profile.DevOpsAnalysis.MaxObservabilityResources) + uint64(profile.DevOpsAnalysis.MaxSecurityControls) +
+		uint64(profile.DevOpsAnalysis.MaxDiagnostics)
+	systemFacts := uint64(profile.SystemMap.MaxRepositories) + uint64(profile.SystemMap.MaxServices) +
+		uint64(profile.SystemMap.MaxLibraries) + uint64(profile.SystemMap.MaxInfrastructure) +
+		uint64(profile.SystemMap.MaxEnvironments) + uint64(profile.SystemMap.MaxOwners) +
+		uint64(profile.SystemMap.MaxExternalResources) + uint64(profile.SystemMap.MaxRelationships) +
+		uint64(profile.SystemMap.MaxDiagnostics)
+	validationFacts := uint64(profile.ArtifactValidation.MaxArtifacts) +
+		uint64(profile.ArtifactValidation.MaxDiagnostics)
+	return codeFacts + devOpsFacts + systemFacts + validationFacts + uint64(profile.Findings.MaxFindings)
 }
 
 func validScalingProfileName(name ScalingProfileName) bool {

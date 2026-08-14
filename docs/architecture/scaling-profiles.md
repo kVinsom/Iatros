@@ -1,6 +1,6 @@
 # IATROS Scaling Profiles
 
-> **Status: implemented for local per-repository analysis, system maps, remote analysis, change impact, and unified findings.** `small` and `monorepo` are selectable in the local CLI. `enterprise` is a validated per-worker profile that an Enterprise composition may enable; the default local composition does not enable it. Remote adapters, distributed control-plane behavior, and worker-fleet scaling remain target behavior.
+> **Status: implemented for local per-repository analysis, system maps, remote analysis, change impact, artifact validation, Doctor audits, and unified findings.** `small` and `monorepo` are selectable in the local CLI. `enterprise` is a validated per-worker profile that an Enterprise composition may enable; the default local composition does not enable it. Remote adapters, Doctor and artifact-validation CLI integration, distributed control-plane behavior, and worker-fleet scaling remain target behavior.
 
 See also:
 
@@ -22,8 +22,10 @@ Repository size affects every analysis stage. Increasing only filesystem discove
 6. static source analysis and retained code facts;
 7. normalized system-map entities, relationships, evidence, and diagnostics;
 8. remote provider requests, response bytes, repositories, relationships, evidence, and diagnostics;
-9. changed paths, affected system targets, causes, and dependency traversal; and
-10. findings, subjects, evidence, recommendations, and controlled exclusion records.
+9. changed paths, affected system targets, causes, and dependency traversal;
+10. existing and generated artifact reads, parsers, validators, and diagnostics;
+11. Doctor rules, normalized input facts, category diagnostics, and audit time; and
+12. findings, subjects, evidence, recommendations, and controlled exclusion records.
 
 Profiles are bounded resource budgets, not claims that every repository below a file count will complete. Repository shape, directory fan-out, manifest size, dependency density, storage performance, and host capacity also affect the result.
 
@@ -174,6 +176,26 @@ An Enterprise product entitlement does not itself grant filesystem, provider, ne
 | Change-impact timeout | 10 seconds | 2 minutes | 10 minutes |
 | Exclusion-evaluation timeout | 10 seconds | 2 minutes | 10 minutes |
 
+### 3.8 Artifact validation and Doctor
+
+| Limit | `small` | `monorepo` | `enterprise` |
+| --- | ---: | ---: | ---: |
+| Artifacts per validation report | 500 | 25,000 | 100,000 |
+| Bytes per artifact | 2 MiB | 8 MiB | 16 MiB |
+| Total artifact bytes | 32 MiB | 2 GiB | 16 GiB |
+| Registered validators | 100 | 1,000 | 5,000 |
+| Diagnostics per artifact | 100 | 1,000 | 5,000 |
+| Validation diagnostics | 1,000 | 100,000 | 500,000 |
+| Syntax nodes or tokens | 250,000 | 1,000,000 | 4,000,000 |
+| Syntax nesting depth | 128 | 256 | 512 |
+| YAML aliases | 1,000 | 10,000 | 50,000 |
+| Artifact-validation timeout | 15 seconds | 2 minutes | 10 minutes |
+| Doctor rules | 100 | 1,000 | 5,000 |
+| Doctor normalized input facts | 100,000 | 6,000,000 | 30,000,000 |
+| Inherited repository findings | 1,000 | 100,000 | 500,000 |
+| Doctor diagnostics | 200 | 10,000 | 50,000 |
+| Doctor timeout | 15 seconds | 2 minutes | 10 minutes |
+
 These values are release starting points, not immutable product ceilings. A later release may change values without changing the semantic meaning of a profile, but every shipped set must remain validated and covered by representative performance measurements.
 
 ## 4. Validation invariants
@@ -191,6 +213,9 @@ Every profile is rejected during composition unless:
 - the system map can retain all configured remote repositories, relationships, evidence, diagnostics, and text;
 - change impact can retain all system-map services, environments, and infrastructure records;
 - change-impact traversal work can inspect at least every retained system-map relationship;
+- artifact-validation byte budgets do not exceed DevOps configuration-analysis byte budgets;
+- Doctor can retain the configured code-analysis, DevOps-analysis, system-map, artifact-validation, and inherited
+  finding maxima for one report;
 - an enabled profile name appears only once in a composition;
 - at least one profile is enabled.
 
@@ -255,4 +280,5 @@ Tests cover:
 - rejection of Enterprise by the default CLI before a service is invoked;
 - text and JSON profile reporting;
 - schema validation for unknown profile names;
-- existing discovery, parser, topology, code-analysis contract, readiness, change-impact, finding-exclusion, cancellation, and safety behavior under the default profile.
+- existing discovery, parser, topology, code-analysis contract, readiness, change-impact, artifact-validation,
+  Doctor, finding-exclusion, cancellation, and safety behavior under the default profile.

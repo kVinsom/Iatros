@@ -1,7 +1,7 @@
 # IATROS Target Architecture
 
 > [!IMPORTANT]
-> **Status: target architecture with an integrated local analysis slice.** The root Go module and Cobra CLI expose bounded ignore-aware analysis and a separate bounded repository-topology workflow. Both use unified `small` or `monorepo` resource profiles. Analysis uses schema `1.0` with unified findings; topology remains an independent schema `0.3`. A validated Enterprise per-worker profile exists for entitlement-aware composition. Every broader runtime, API, SDK, plugin, workflow, and security capability remains target behavior unless explicitly marked otherwise.
+> **Status: target architecture with an integrated local analysis slice and internal validation foundations.** The root Go module and Cobra CLI expose bounded ignore-aware analysis and a separate bounded repository-topology workflow. Both use unified `small` or `monorepo` resource profiles. Analysis uses schema `1.0` with unified findings; topology remains an independent schema `0.3`. Internal artifact-validation and Doctor schema `1.0` engines are implemented without CLI integration. A validated Enterprise per-worker profile exists for entitlement-aware composition. Every broader runtime, API, SDK, plugin, workflow, and security capability remains target behavior unless explicitly marked otherwise.
 
 Related documents:
 
@@ -20,6 +20,8 @@ Related documents:
 - [Remote and polyrepository analysis architecture](remote-analysis.md)
 - [Change impact analysis architecture](change-impact.md)
 - [Unified findings architecture](findings.md)
+- [Artifact validation architecture](artifact-validation.md)
+- [IATROS Doctor architecture](doctor.md)
 - [Architecture decision records](decisions/README.md)
 
 ## 1. Status and scope
@@ -188,7 +190,7 @@ An inbound API adapter is wired by the applicable composition root, such as `cmd
 
 ## 7. Domain map
 
-The following paths define capability ownership. Analysis orchestration, discovery, technology detection, project-boundary modeling, manifest analysis, topology association, readiness, unified findings, change-impact graph analysis, and CLI reporting have initial implementations. Static code analysis and DevOps stack analysis have implemented normalized contracts and resource profiles; their content analyzers remain pending. Other entries remain structural or target boundaries unless documented otherwise.
+The following paths define capability ownership. Analysis orchestration, discovery, technology detection, project-boundary modeling, manifest analysis, topology association, readiness, unified findings, change-impact graph analysis, artifact validation, Doctor auditing, and CLI reporting have initial implementations. Static code analysis and DevOps stack analysis have implemented normalized contracts and resource profiles; their content analyzers remain pending. Other entries remain structural or target boundaries unless documented otherwise.
 
 | Domain | Target responsibility |
 | --- | --- |
@@ -204,9 +206,10 @@ The following paths define capability ownership. Analysis orchestration, discove
 | `internal/changeimpact` | Deterministic direct and dependency-propagated impact over normalized changes and a system map. |
 | `internal/finding` | Unified finding assessment, structured evidence, provenance, risk, recommendations, and controlled exclusions. |
 | `internal/readiness` | Deterministic repository-readiness rules that emit the unified finding model. |
+| `internal/artifactvalidation` | Bounded validation of existing and generated DevOps artifacts with normalized diagnostics. |
 | `internal/assistant` | Provider-neutral planning, context assembly, risk reasoning, and root-cause-analysis coordination. |
 | `internal/generation` | Creation of candidate delivery, infrastructure, documentation, and operational artifacts. |
-| `internal/doctor` | Validation and actionable diagnostics. |
+| `internal/doctor` | Six-domain operational readiness audits over normalized evidence and unified findings. |
 | `internal/deployment` | Promotion, rollback, GitOps, reconciliation, and drift workflows. |
 | `internal/observability` | Provider-neutral telemetry semantics and reliability workflows. |
 | `internal/security` | Provider-neutral security policy, normalized findings, and effect classification. |
@@ -356,7 +359,8 @@ The approval and execution semantics remain proposed until [ADR-0004](decisions/
 | Change impact | `internal/changeimpact` | Private schema `1.0` affected-target model with attributable causes and explicit partial state. |
 | Findings and exclusions | `internal/finding` | Private schema `1.0` shared representation; rule behavior remains with each consuming capability. |
 | Plans and candidate artifacts | `internal/assistant` and `internal/generation` | Not executable authority by themselves. |
-| Validation results | `internal/doctor` | Normalized diagnostics with provenance. |
+| Artifact validation results | `internal/artifactvalidation` | Private schema `1.0` artifact identities, digests, outcomes, validator provenance, and normalized diagnostics. |
+| Operational readiness audit | `internal/doctor` | Private schema `1.0` category coverage, unified findings, exclusions, and execution diagnostics. |
 | Public wire messages | `api/` | Versioning and transport are TBD. |
 | Client contract | `sdk/client` | Must remain independent from private packages. |
 | Plugin capabilities | `sdk/plugin` | Concrete providers translate to normalized contracts. |

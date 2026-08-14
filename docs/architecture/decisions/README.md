@@ -12,6 +12,12 @@ Architecture decision records (ADRs) capture consequential choices, their contex
 | [ADR-0004](0004-control-state-changing-operations.md) | Control state-changing operations | Proposed | 2026-07-31 | — |
 | [ADR-0005](0005-use-cobra-as-the-cli-adapter.md) | Use Cobra as the CLI adapter | Accepted | 2026-08-01 | — |
 | [ADR-0006](0006-version-private-core-contracts.md) | Version private core contracts independently from public APIs | Accepted | 2026-08-03 | — |
+| [ADR-0006](0006-use-explicit-unified-scaling-profiles.md) | Use explicit unified scaling profiles | Accepted | 2026-08-03 | — |
+| [ADR-0007](0007-use-bounded-repository-owned-ignore-rules.md) | Use bounded repository-owned ignore rules | Accepted | 2026-08-03 | — |
+| [ADR-0008](0008-use-bounded-replaceable-artifact-parsers.md) | Use bounded replaceable artifact parsers | Accepted | 2026-08-14 | — |
+
+Two accepted records were assigned `ADR-0006` before this index was reconciled. Their stable filenames and historical
+identifiers remain unchanged; new decisions continue from the next unused filename.
 
 ## Status lifecycle
 

@@ -19,6 +19,7 @@ The [IATROS Product Contract](product-contract.md) defines the final product bou
 | [PS-0007](0007-remote-polyrepo-analysis-contract.md) | Remote and polyrepository analysis contract | Approved | In progress | 2026-08-12 |
 | [PS-0008](0008-change-impact-analysis-contract.md) | Change impact analysis contract | Approved | In progress | 2026-08-14 |
 | [PS-0009](0009-unified-findings-contract.md) | Unified findings contract | Approved | Implemented | 2026-08-14 |
+| [PS-0010](0010-doctor-validation-contract.md) | Doctor and artifact validation contract | Approved | In progress | 2026-08-14 |
 
 ## Status model
 

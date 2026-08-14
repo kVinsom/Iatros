@@ -1,7 +1,7 @@
 # IATROS Documentation
 
 > [!IMPORTANT]
-> IATROS is in early implementation. A local Cobra-based CLI runs bounded Git-style ignore handling, submodule isolation, metadata discovery, technology detection, readiness evaluation, and deterministic reporting. The same CLI exposes a separate bounded repository-topology report built from project boundaries and safely parsed manifests. Both workflows support explicit `small` and `monorepo` scaling profiles.
+> IATROS is in early implementation. A local Cobra-based CLI runs bounded Git-style ignore handling, submodule isolation, metadata discovery, technology detection, readiness evaluation, and deterministic reporting. The same CLI exposes a separate bounded repository-topology report built from project boundaries and safely parsed manifests. Both workflows support explicit `small` and `monorepo` scaling profiles. Internal artifact-validation and Doctor engines are implemented and tested; their CLI and lifecycle integration remains pending.
 
 ## Product specifications
 
@@ -16,6 +16,7 @@
 - [PS-0007: Remote and polyrepository analysis contract](product/0007-remote-polyrepo-analysis-contract.md) - normalized provider metadata and bounded multi-repository composition.
 - [PS-0008: Change impact analysis contract](product/0008-change-impact-analysis-contract.md) - deterministic services, environments, and configurations affected by normalized changes.
 - [PS-0009: Unified findings contract](product/0009-unified-findings-contract.md) - required assessment dimensions and controlled exclusion behavior.
+- [PS-0010: Doctor and artifact validation contract](product/0010-doctor-validation-contract.md) - bounded validation for existing and generated DevOps artifacts plus six-domain operational readiness audits.
 
 ## Architecture
 
@@ -23,6 +24,8 @@
 - [Remote and polyrepository analysis architecture](architecture/remote-analysis.md) - provider boundaries, immutable repository identity, polyrepository graphs, credentials, safety, and resource budgets.
 - [Change impact analysis architecture](architecture/change-impact.md) - direct matching, reverse dependency propagation, causes, limits, and partial-result behavior.
 - [Unified findings architecture](architecture/findings.md) - shared assessment, evidence, provenance, risk, recommendations, and controlled exclusions.
+- [Artifact validation architecture](architecture/artifact-validation.md) - bounded sources, replaceable validators, syntax and structure checks, and normalized diagnostics.
+- [IATROS Doctor architecture](architecture/doctor.md) - six-domain coverage, evidence completeness, operational rules, findings, and exclusions.
 - [Manifest analysis architecture](architecture/manifest-analysis.md) - bounded content access, supported formats, normalized facts, parser safety, resource profiles, and backend replacement rules.
 - [DevOps stack analysis architecture](architecture/devops-analysis.md) - provider-neutral configuration facts, parser and correlation boundaries, limits, privacy, and staged format coverage.
 - [Repository topology architecture](architecture/topology.md) - project/component association, workspace membership, direct dependency resolution, limits, and partial-state rules.

@@ -1,6 +1,6 @@
 # Unified Findings Architecture
 
-> **Status: normalized model and controlled exclusions implemented; readiness and local analysis reporting migrated.** Other analyzers must adopt the contract when they begin producing findings.
+> **Status: normalized model and controlled exclusions implemented; readiness, Doctor, and local analysis reporting migrated.** Other analyzers must adopt the contract when they begin producing findings.
 
 See also:
 
@@ -78,6 +78,10 @@ or mutated. Limits reject oversized input; they do not silently truncate evidenc
 while `internal/finding` owns representation. `internal/analysis.Report` uses the same type directly, so there is no
 lossy readiness-to-report translation. The analysis report schema is `1.0`; text output renders assessment,
 evidence, risk, recommendation, disposition, and any applied exclusion.
+
+`internal/doctor` also emits this type directly for production, reliability, performance, security, deployment,
+and cost rules. Doctor validates active rule output, rejects duplicate identities, and applies the same controlled
+exclusions once after every registered rule finishes.
 
 Operational diagnostics remain separate report records. They describe execution state and partial analysis, not a
 confirmed product problem, and cannot be suppressed through finding exclusions.
