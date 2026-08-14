@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/kVinsom/Iatros/internal/analysis"
+	"github.com/kVinsom/Iatros/internal/finding"
 )
 
 const (
@@ -141,21 +142,49 @@ func writeTextFindings(output *textWriter, findings []analysis.Finding) {
 	}
 
 	for _, finding := range findings {
-		output.printf("- [%s] %s: %s\n", finding.Severity, finding.Code, finding.Message)
+		output.printf(
+			"- [%s/%s] %s: %s\n",
+			finding.Severity,
+			finding.Confidence,
+			finding.RuleID,
+			finding.Title,
+		)
+		output.printf("  Description: %s\n", finding.Description)
 		writeTextEvidence(output, finding.Evidence)
-		output.printf("  Remediation: %s\n", finding.Remediation)
+		output.printf(
+			"  Risk: [%s/%s] %s\n",
+			finding.Risk.Level,
+			finding.Risk.Likelihood,
+			finding.Risk.Summary,
+		)
+		output.printf("  Recommendation: %s\n", finding.Recommendation.Summary)
+		for _, action := range finding.Recommendation.Actions {
+			output.printf("    - %s\n", action)
+		}
+		output.printf("  Disposition: %s\n", finding.Disposition)
+		if finding.Exclusion != nil {
+			output.printf("  Exclusion: %s (expires %s)\n", finding.Exclusion.ID, finding.Exclusion.ExpiresAt.Format("2006-01-02T15:04:05Z07:00"))
+		}
 	}
 }
 
-func writeTextEvidence(output *textWriter, evidence []string) {
+func writeTextEvidence(output *textWriter, evidence []finding.Evidence) {
 	if len(evidence) == 0 {
 		output.line("  Evidence: none")
 		return
 	}
 
 	output.line("  Evidence:")
-	for _, evidenceText := range evidence {
-		output.printf("    - %s\n", evidenceText)
+	for _, observation := range evidence {
+		location := observation.Reference
+		if observation.Path != "" {
+			location = observation.RepositoryID + ":" + observation.Path
+		}
+		if location == "" {
+			output.printf("    - [%s] %s\n", observation.Kind, observation.Description)
+			continue
+		}
+		output.printf("    - [%s] %s (%s)\n", observation.Kind, observation.Description, location)
 	}
 }
 

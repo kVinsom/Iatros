@@ -105,9 +105,9 @@ func TestEvaluatorReportsMissingTestsAndCIForCodeRepository(t *testing.T) {
 	}
 
 	testsFinding := findFinding(t, findings, FindingCodeTestsNotDetected)
-	wantEvidence := []string{"Detected code ecosystems: go, nodejs."}
-	if !slices.Equal(testsFinding.Evidence, wantEvidence) {
-		t.Fatalf("test evidence = %#v, want %#v", testsFinding.Evidence, wantEvidence)
+	wantEvidence := "Detected code ecosystems: go, nodejs."
+	if len(testsFinding.Evidence) != 1 || testsFinding.Evidence[0].Description != wantEvidence {
+		t.Fatalf("test evidence = %#v, want %q", testsFinding.Evidence, wantEvidence)
 	}
 }
 
@@ -123,7 +123,7 @@ func TestEvaluatorIgnoresTestMarkersFromDependencyDirectories(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Evaluate() error = %v", err)
 	}
-	if findFinding(t, findings, FindingCodeTestsNotDetected).Code != FindingCodeTestsNotDetected {
+	if findFinding(t, findings, FindingCodeTestsNotDetected).RuleID != FindingCodeTestsNotDetected {
 		t.Fatalf("findings = %#v, want missing-tests finding", findings)
 	}
 }
@@ -425,7 +425,7 @@ func recognizedLicenseName(name string) bool {
 func findingCodes(findings []Finding) []string {
 	codes := make([]string, 0, len(findings))
 	for _, finding := range findings {
-		codes = append(codes, finding.Code)
+		codes = append(codes, finding.RuleID)
 	}
 	return codes
 }
@@ -434,7 +434,7 @@ func findFinding(t *testing.T, findings []Finding, code string) Finding {
 	t.Helper()
 
 	for _, finding := range findings {
-		if finding.Code == code {
+		if finding.RuleID == code {
 			return finding
 		}
 	}
@@ -445,16 +445,8 @@ func findFinding(t *testing.T, findings []Finding, code string) Finding {
 func assertValidFinding(t *testing.T, finding Finding) {
 	t.Helper()
 
-	if finding.Code == "" || finding.Message == "" || finding.Remediation == "" ||
-		len(finding.Evidence) == 0 {
-		t.Fatalf("invalid finding %#v", finding)
-	}
-	if finding.Severity != SeverityInfo && finding.Severity != SeverityWarning &&
-		finding.Severity != SeverityCritical {
-		t.Fatalf("finding %#v has invalid severity", finding)
-	}
-	if !slices.IsSorted(finding.Evidence) {
-		t.Fatalf("finding %#v has unsorted evidence", finding)
+	if err := finding.Validate(); err != nil {
+		t.Fatalf("finding %#v validation error = %v", finding, err)
 	}
 }
 

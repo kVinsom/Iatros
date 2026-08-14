@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/kVinsom/Iatros/internal/detection"
+	"github.com/kVinsom/Iatros/internal/finding"
 	"github.com/kVinsom/Iatros/internal/readiness"
 )
 
@@ -389,26 +390,27 @@ func TestCompletedLocalReportOwnsEvidence(t *testing.T) {
 	t.Parallel()
 
 	technologyEvidence := []string{"go.mod"}
-	findingEvidence := []string{"go.mod"}
+	findingEvidence := []finding.Evidence{{
+		Kind: finding.EvidenceRepositoryFile, Description: "No tests were found.",
+		RepositoryID: "local", Path: "go.mod",
+	}}
+	readinessFinding := testFinding()
+	readinessFinding.Evidence = findingEvidence
 	report := completedLocalReport(
 		Inventory{Directories: []string{"."}, Files: []string{"go.mod"}},
 		[]detection.Technology{{
 			ID: "go", Category: detection.CategoryLanguage, Evidence: technologyEvidence,
 		}},
-		[]readiness.Finding{{
-			Code: readiness.FindingCodeTestsNotDetected, Severity: readiness.SeverityWarning,
-			Message: "No supported test evidence was detected.", Evidence: findingEvidence,
-			Remediation: "Add automated tests.",
-		}},
+		[]readiness.Finding{readinessFinding},
 	)
 	if err := report.Validate(); err != nil {
 		t.Fatalf("Validate() error = %v", err)
 	}
 
 	technologyEvidence[0] = "changed"
-	findingEvidence[0] = "changed"
+	findingEvidence[0].Path = "changed"
 	if report.Ecosystems[0].Evidence[0] != "go.mod" ||
-		report.Findings[0].Evidence[0] != "go.mod" {
+		report.Findings[0].Evidence[0].Path != "go.mod" {
 		t.Fatalf("report retained backend-owned evidence: %#v", report)
 	}
 }

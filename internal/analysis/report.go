@@ -1,11 +1,16 @@
 // Package analysis defines provider-neutral local repository analysis contracts.
 package analysis
 
-import "errors"
+import (
+	"errors"
+	"slices"
+
+	"github.com/kVinsom/Iatros/internal/finding"
+)
 
 const (
 	// SchemaVersion identifies the current machine-readable report schema.
-	SchemaVersion = "0.3"
+	SchemaVersion = "1.0"
 	// TargetKindLocalDirectory identifies a repository rooted in a local directory.
 	TargetKindLocalDirectory = "local_directory"
 	// TargetRootPath is the privacy-safe path used for the selected analysis root.
@@ -79,14 +84,8 @@ type Ecosystem struct {
 	EvidenceTruncated bool     `json:"evidence_truncated"`
 }
 
-// Finding describes an evidence-based repository-readiness observation.
-type Finding struct {
-	Code        string   `json:"code"`
-	Severity    string   `json:"severity"`
-	Message     string   `json:"message"`
-	Evidence    []string `json:"evidence"`
-	Remediation string   `json:"remediation"`
-}
+// Finding is the unified evidence, provenance, risk, recommendation, and exclusion contract.
+type Finding = finding.Finding
 
 // Diagnostic explains an analysis outcome or limitation.
 type Diagnostic struct {
@@ -144,8 +143,12 @@ func (r Report) Normalized() Report {
 	if r.Ecosystems == nil {
 		r.Ecosystems = make([]Ecosystem, 0)
 	}
+	r.Findings = slices.Clone(r.Findings)
 	if r.Findings == nil {
 		r.Findings = make([]Finding, 0)
+	}
+	for index := range r.Findings {
+		r.Findings[index] = r.Findings[index].Normalized()
 	}
 	if r.Diagnostics == nil {
 		r.Diagnostics = make([]Diagnostic, 0)

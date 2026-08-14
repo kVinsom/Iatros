@@ -10,10 +10,11 @@ See also:
 - [Security architecture](security.md)
 - [Testing strategy](testing.md)
 - [PS-0001: Local Repository Analysis](../product/0001-local-repository-analysis.md)
+- [Unified findings architecture](findings.md)
 
 ## 1. Boundary
 
-Repository readiness is a provider-neutral capability under `internal/readiness`. It owns private snapshot, technology, severity, and finding types so it does not depend on CLI or report serialization contracts.
+Repository readiness is a provider-neutral capability under `internal/readiness`. It owns its snapshot, technology vocabulary, and rule behavior. Findings use the provider-neutral `internal/finding` contract, which remains independent from CLI and report serialization.
 
 ```text
 bounded inventory + detected technologies
@@ -22,13 +23,13 @@ bounded inventory + detected technologies
        internal/readiness.Evaluator
                     |
                     v
-          sorted private findings
+          normalized unified findings
                     |
                     v
-        internal analysis-report adapter
+      internal analysis report and CLI
 ```
 
-The analysis orchestrator translates discovery and detection results into a readiness `Snapshot`, then translates readiness findings into the versioned report contract. This deliberate translation keeps capability dependencies acyclic and keeps readiness independent from serialization and CLI concerns.
+The analysis orchestrator translates discovery and detection results into a readiness `Snapshot`. Readiness returns the unified finding type directly, so the versioned analysis report does not perform a lossy finding translation. The dependency remains acyclic because both readiness and analysis consume `internal/finding`, which imports neither package.
 
 ## 2. Evaluation behavior
 
@@ -40,7 +41,8 @@ The evaluator:
 - indexes directories, files, and technologies once before applying rules;
 - does not mutate or reorder caller-owned collections;
 - deduplicates and sorts technology IDs used as evidence;
-- returns findings ordered by severity, code, and evidence;
+- emits every required finding dimension, including confidence, provenance, risk, and recommendation;
+- returns findings ordered by severity, rule ID, and finding ID;
 - returns non-nil empty collections when no finding is applicable.
 
 When discovery reports `Partial`, every current rule is suppressed. The absence of a marker is not trustworthy when part of the repository may be unreadable or omitted by a safety limit. The analysis orchestrator maps each retained discovery issue to a warning diagnostic in the partial report.
@@ -49,11 +51,11 @@ When discovery reports `Partial`, every current rule is suppressed. The absence 
 
 | Code | Severity | Condition |
 | --- | --- | --- |
-| `repository.readme.missing` | `warning` | No recognized README exists at the repository root. |
-| `repository.license.missing` | `info` | No recognized license file exists at the repository root. |
-| `repository.gitignore.missing` | `info` | No exact `.gitignore` exists at the repository root. |
-| `quality.tests.not_detected` | `warning` | A language or runtime is detected, but no supported test marker exists anywhere in the snapshot. |
-| `delivery.ci.not_detected` | `warning` | At least one technology is detected, but no technology in the `ci_cd` category is present. |
+| `repository.readme.missing` | `medium` | No recognized README exists at the repository root. |
+| `repository.license.missing` | `informational` | No recognized license file exists at the repository root. |
+| `repository.gitignore.missing` | `informational` | No exact `.gitignore` exists at the repository root. |
+| `quality.tests.not_detected` | `medium` | A language or runtime is detected, but no supported test marker exists anywhere in the snapshot. |
+| `delivery.ci.not_detected` | `medium` | At least one technology is detected, but no technology in the `ci_cd` category is present. |
 
 A complete empty repository receives only the three repository-foundation findings. Infrastructure-only repositories are eligible for the CI/CD finding but not the code-test finding.
 
@@ -82,3 +84,13 @@ Test files or directories below the shared excluded-directory policy do not sati
 Missing lock files, dependency-manager conflicts, per-project test coverage, and per-project CI coverage remain deferred until the internal boundary model is enriched and integrated with readiness. Multiple managers or lock files can be valid in a monorepository, and a repository-wide absence rule must not misrepresent that structure.
 
 Content-aware readiness rules remain deferred until bounded allowlisted parsing exists. Future rules must preserve the same evidence, cancellation, partial-snapshot, and deterministic-ordering policies.
+
+## 7. Findings and exclusions
+
+Every readiness finding has high confidence because absence rules run only on a complete validated snapshot. Evidence
+is a structured analyzer observation, provenance identifies the readiness producer and rule version, and risk and
+recommendation remain rule-specific rather than inferred by the CLI.
+
+The evaluator emits active findings and does not read exclusion policy. A higher use-case boundary may apply
+validated controlled exclusions through `internal/finding.ApplyExclusions`. Exclusion keeps the finding in the
+result and cannot turn a partial snapshot into trustworthy absence evidence.

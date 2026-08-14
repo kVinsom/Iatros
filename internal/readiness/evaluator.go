@@ -6,6 +6,8 @@ import (
 	"errors"
 	"slices"
 	"strings"
+
+	"github.com/kVinsom/Iatros/internal/finding"
 )
 
 const (
@@ -23,11 +25,17 @@ const (
 
 const (
 	// SeverityInfo identifies an informational readiness observation.
-	SeverityInfo Severity = "info"
+	SeverityInfo Severity = finding.SeverityInformational
 	// SeverityWarning identifies an actionable readiness concern.
-	SeverityWarning Severity = "warning"
+	SeverityWarning Severity = finding.SeverityMedium
 	// SeverityCritical identifies a high-impact readiness concern.
-	SeverityCritical Severity = "critical"
+	SeverityCritical Severity = finding.SeverityCritical
+)
+
+const (
+	readinessProducer        = "iatros.readiness"
+	readinessProducerVersion = "1.0"
+	readinessRuleVersion     = "1.0"
 )
 
 const (
@@ -43,7 +51,7 @@ const (
 var ErrInvalidSnapshot = errors.New("readiness snapshot is invalid")
 
 // Severity describes the importance of a readiness finding.
-type Severity string
+type Severity = finding.Severity
 
 // TechnologyCategory identifies a technology's primary repository role.
 type TechnologyCategory string
@@ -62,14 +70,8 @@ type Snapshot struct {
 	Partial      bool
 }
 
-// Finding describes one evidence-based repository readiness observation.
-type Finding struct {
-	Code        string
-	Severity    Severity
-	Message     string
-	Evidence    []string
-	Remediation string
-}
+// Finding is the unified evidence, provenance, risk, recommendation, and exclusion contract.
+type Finding = finding.Finding
 
 // Evaluator applies the built-in readiness rules without external side effects.
 type Evaluator struct{}
@@ -110,78 +112,125 @@ func (Evaluator) Evaluate(ctx context.Context, snapshot Snapshot) ([]Finding, er
 }
 
 func missingReadmeFinding() Finding {
-	return Finding{
-		Code:     FindingCodeReadmeMissing,
-		Severity: SeverityWarning,
-		Message:  "The repository does not contain a recognized root README file.",
-		Evidence: []string{
-			"No recognized README file was found at the repository root.",
-		},
-		Remediation: "Add a root README that explains the project, its status, " +
-			"and verified usage.",
-	}
+	return newFinding(
+		FindingCodeReadmeMissing,
+		"Root README is missing",
+		"The repository does not contain a recognized root README file.",
+		SeverityWarning,
+		"A complete repository snapshot contains no recognized root README file.",
+		finding.RiskMedium,
+		finding.LikelihoodLikely,
+		"Contributors and operators may not have verified project instructions.",
+		"Document the project at the repository root.",
+		"Add a root README that explains the project, its status, and verified usage.",
+	)
 }
 
 func missingLicenseFinding() Finding {
-	return Finding{
-		Code:     FindingCodeLicenseMissing,
-		Severity: SeverityInfo,
-		Message:  "The repository does not contain a recognized root license file.",
-		Evidence: []string{
-			"No recognized license file was found at the repository root.",
-		},
-		Remediation: "Add a root license file that states the terms under which " +
-			"the project may be used and distributed.",
-	}
+	return newFinding(
+		FindingCodeLicenseMissing,
+		"Root license is missing",
+		"The repository does not contain a recognized root license file.",
+		SeverityInfo,
+		"A complete repository snapshot contains no recognized root license file.",
+		finding.RiskLow,
+		finding.LikelihoodPossible,
+		"Users may not know the terms under which the project can be used or distributed.",
+		"State the project's usage and distribution terms.",
+		"Add a root license file with the project's usage and distribution terms.",
+	)
 }
 
 func missingGitignoreFinding() Finding {
-	return Finding{
-		Code:     FindingCodeGitignoreMissing,
-		Severity: SeverityInfo,
-		Message:  "The repository does not contain a root .gitignore file.",
-		Evidence: []string{
-			"No .gitignore file was found at the repository root.",
-		},
-		Remediation: "Add a root .gitignore file for generated, local, and " +
-			"sensitive artifacts relevant to the detected ecosystems.",
-	}
+	return newFinding(
+		FindingCodeGitignoreMissing,
+		"Root .gitignore is missing",
+		"The repository does not contain a root .gitignore file.",
+		SeverityInfo,
+		"A complete repository snapshot contains no root .gitignore file.",
+		finding.RiskLow,
+		finding.LikelihoodPossible,
+		"Generated, local, or sensitive artifacts may be committed unintentionally.",
+		"Define repository-wide ignore rules.",
+		"Add a root .gitignore for generated, local, and sensitive ecosystem artifacts.",
+	)
 }
 
 func missingTestsFinding(technologyIDs []string) Finding {
-	return Finding{
-		Code:     FindingCodeTestsNotDetected,
-		Severity: SeverityWarning,
-		Message:  "Supported test markers were not detected for the identified code ecosystems.",
-		Evidence: []string{
-			"Detected code ecosystems: " + strings.Join(technologyIDs, ", ") + ".",
-		},
-		Remediation: "Add automated tests and a recognized test layout for at " +
-			"least one identified code ecosystem.",
-	}
+	return newFinding(
+		FindingCodeTestsNotDetected,
+		"Automated tests were not detected",
+		"Supported test markers were not detected for the identified code ecosystems.",
+		SeverityWarning,
+		"Detected code ecosystems: "+strings.Join(technologyIDs, ", ")+".",
+		finding.RiskHigh,
+		finding.LikelihoodLikely,
+		"Regressions may reach users without automated detection.",
+		"Add automated verification for the detected code ecosystems.",
+		"Add tests and a recognized test layout for at least one detected code ecosystem.",
+	)
 }
 
 func missingCIFinding() Finding {
+	return newFinding(
+		FindingCodeCINotDetected,
+		"CI/CD configuration was not detected",
+		"Supported CI/CD configuration was not detected.",
+		SeverityWarning,
+		"Repository technologies were detected, but no supported CI/CD marker was found.",
+		finding.RiskHigh,
+		finding.LikelihoodLikely,
+		"Changes may be integrated without consistent build and test verification.",
+		"Verify every proposed change in CI/CD.",
+		"Add CI/CD configuration that builds and tests every proposed change.",
+	)
+}
+
+func newFinding(
+	ruleID string,
+	title string,
+	description string,
+	severity Severity,
+	evidenceDescription string,
+	riskLevel finding.RiskLevel,
+	likelihood finding.Likelihood,
+	riskSummary string,
+	recommendationSummary string,
+	recommendationAction string,
+) Finding {
 	return Finding{
-		Code:     FindingCodeCINotDetected,
-		Severity: SeverityWarning,
-		Message:  "Supported CI/CD configuration was not detected.",
-		Evidence: []string{
-			"Repository technologies were detected, but no supported CI/CD marker was found.",
+		ID:          ruleID + ".local",
+		RuleID:      ruleID,
+		Title:       title,
+		Description: description,
+		Severity:    severity,
+		Confidence:  finding.ConfidenceHigh,
+		Subjects: []finding.Subject{{
+			Kind: "repository", ID: "local",
+		}},
+		Evidence: []finding.Evidence{{
+			Kind: finding.EvidenceObservation, Description: evidenceDescription,
+		}},
+		Provenance: finding.Provenance{
+			Producer: readinessProducer, ProducerVersion: readinessProducerVersion,
+			RuleVersion: readinessRuleVersion, Source: "repository_snapshot",
 		},
-		Remediation: "Add a CI/CD configuration that builds and tests the " +
-			"repository on every proposed change.",
-	}
+		Risk: finding.Risk{Level: riskLevel, Likelihood: likelihood, Summary: riskSummary},
+		Recommendation: finding.Recommendation{
+			Summary: recommendationSummary, Actions: []string{recommendationAction},
+		},
+		Disposition: finding.DispositionActive,
+	}.Normalized()
 }
 
 func compareFindings(left, right Finding) int {
 	if comparison := severityRank(left.Severity) - severityRank(right.Severity); comparison != 0 {
 		return comparison
 	}
-	if comparison := strings.Compare(left.Code, right.Code); comparison != 0 {
+	if comparison := strings.Compare(left.RuleID, right.RuleID); comparison != 0 {
 		return comparison
 	}
-	return compareEvidence(left.Evidence, right.Evidence)
+	return strings.Compare(left.ID, right.ID)
 }
 
 func severityRank(severity Severity) int {
@@ -193,13 +242,4 @@ func severityRank(severity Severity) int {
 	default:
 		return 2
 	}
-}
-
-func compareEvidence(left, right []string) int {
-	for index := range min(len(left), len(right)) {
-		if comparison := strings.Compare(left[index], right[index]); comparison != 0 {
-			return comparison
-		}
-	}
-	return len(left) - len(right)
 }

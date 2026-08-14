@@ -1,4 +1,4 @@
-# PS-0005: Unified System Map Contract
+# PS-0006: Unified System Map Contract
 
 - **Product status:** Approved
 - **Implementation status:** In progress

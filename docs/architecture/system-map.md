@@ -4,7 +4,7 @@
 
 See also:
 
-- [Unified system map product contract](../product/0005-system-map-contract.md)
+- [Unified system map product contract](../product/0006-system-map-contract.md)
 - [Stable core domain contracts](../product/0002-core-domain-contracts.md)
 - [Repository topology architecture](topology.md)
 - [Scaling profiles](scaling-profiles.md)

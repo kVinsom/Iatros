@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/kVinsom/Iatros/internal/changeimpact"
 	"github.com/kVinsom/Iatros/internal/codeanalysis"
 	"github.com/kVinsom/Iatros/internal/detection"
 	"github.com/kVinsom/Iatros/internal/devopsanalysis"
+	"github.com/kVinsom/Iatros/internal/finding"
 	"github.com/kVinsom/Iatros/internal/manifest"
 	"github.com/kVinsom/Iatros/internal/project"
 	"github.com/kVinsom/Iatros/internal/remoteanalysis"
@@ -44,6 +46,10 @@ type ScalingProfile struct {
 	Topology       topology.Limits
 	CodeAnalysis   codeanalysis.Limits
 	DevOpsAnalysis devopsanalysis.Limits
+	SystemMap      systemmap.Limits
+	RemoteAnalysis remoteanalysis.Limits
+	ChangeImpact   changeimpact.Limits
+	Findings       finding.Limits
 }
 
 // SmallScalingProfile returns the conservative default used by local Basic workflows.
@@ -57,6 +63,10 @@ func SmallScalingProfile() ScalingProfile {
 		Topology:       topology.DefaultLimits(),
 		CodeAnalysis:   codeanalysis.DefaultLimits(),
 		DevOpsAnalysis: devopsanalysis.DefaultLimits(),
+		SystemMap:      systemmap.DefaultLimits(),
+		RemoteAnalysis: remoteanalysis.DefaultLimits(),
+		ChangeImpact:   changeimpact.DefaultLimits(),
+		Findings:       finding.DefaultLimits(),
 	}
 }
 
@@ -83,6 +93,10 @@ func MonorepoScalingProfile() ScalingProfile {
 		Topology:       topology.LargeRepositoryLimits(),
 		CodeAnalysis:   codeanalysis.LargeRepositoryLimits(),
 		DevOpsAnalysis: devopsanalysis.LargeRepositoryLimits(),
+		SystemMap:      systemmap.LargeSystemLimits(),
+		RemoteAnalysis: remoteanalysis.LargeSystemLimits(),
+		ChangeImpact:   changeimpact.LargeSystemLimits(),
+		Findings:       finding.LargeSystemLimits(),
 	}
 }
 
@@ -135,6 +149,10 @@ func EnterpriseScalingProfile() ScalingProfile {
 		},
 		CodeAnalysis:   codeanalysis.EnterpriseLimits(),
 		DevOpsAnalysis: devopsanalysis.EnterpriseLimits(),
+		SystemMap:      systemmap.EnterpriseLimits(),
+		RemoteAnalysis: remoteanalysis.EnterpriseLimits(),
+		ChangeImpact:   changeimpact.EnterpriseLimits(),
+		Findings:       finding.EnterpriseLimits(),
 	}
 }
 
@@ -168,6 +186,10 @@ func (p ScalingProfile) Validate() error {
 		{name: "topology", err: p.Topology.Validate()},
 		{name: "code analysis", err: p.CodeAnalysis.Validate()},
 		{name: "devops analysis", err: p.DevOpsAnalysis.Validate()},
+		{name: "system map", err: p.SystemMap.Validate()},
+		{name: "remote analysis", err: p.RemoteAnalysis.Validate()},
+		{name: "change impact", err: p.ChangeImpact.Validate()},
+		{name: "findings", err: p.Findings.Validate()},
 	}
 	for _, component := range components {
 		if component.err != nil {
@@ -223,6 +245,15 @@ func (p ScalingProfile) Validate() error {
 		p.SystemMap.MaxTextBytes < p.RemoteAnalysis.MaxTextBytes {
 		return fmt.Errorf(
 			"%w: system map cannot preserve normalized remote-analysis facts",
+			ErrInvalidScalingProfile,
+		)
+	}
+	if p.ChangeImpact.MaxServices > p.SystemMap.MaxServices ||
+		p.ChangeImpact.MaxEnvironments > p.SystemMap.MaxEnvironments ||
+		p.ChangeImpact.MaxConfigurations > p.SystemMap.MaxInfrastructure ||
+		p.ChangeImpact.MaxRelationshipTraversals < p.SystemMap.MaxRelationships {
+		return fmt.Errorf(
+			"%w: change impact cannot process the retained system map",
 			ErrInvalidScalingProfile,
 		)
 	}

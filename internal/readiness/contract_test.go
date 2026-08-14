@@ -18,14 +18,8 @@ func TestFindingsFitAnalysisReportContract(t *testing.T) {
 	}
 
 	reportFindings := make([]analysis.Finding, 0, len(readinessFindings))
-	for _, finding := range readinessFindings {
-		reportFindings = append(reportFindings, analysis.Finding{
-			Code:        finding.Code,
-			Severity:    string(finding.Severity),
-			Message:     finding.Message,
-			Evidence:    finding.Evidence,
-			Remediation: finding.Remediation,
-		})
+	for _, readinessFinding := range readinessFindings {
+		reportFindings = append(reportFindings, readinessFinding.Normalized())
 	}
 	report := analysis.Report{
 		SchemaVersion: analysis.SchemaVersion,

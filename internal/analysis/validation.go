@@ -5,6 +5,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/kVinsom/Iatros/internal/finding"
 	"github.com/kVinsom/Iatros/internal/repositorypath"
 )
 
@@ -73,18 +74,27 @@ func validResultData(
 }
 
 func validFinding(finding Finding) bool {
-	if !validFindingCode(finding.Code) ||
-		!validSeverity(finding.Severity) ||
-		!validPublicMessage(finding.Message) ||
-		len(finding.Evidence) == 0 ||
-		!strictlySortedStrings(finding.Evidence) ||
-		!validPublicMessage(finding.Remediation) {
+	if finding.Validate() != nil || !validPublicMessage(finding.Title) ||
+		!validPublicMessage(finding.Description) ||
+		!validPublicMessage(finding.Risk.Summary) ||
+		!validPublicMessage(finding.Recommendation.Summary) {
 		return false
 	}
-	for _, evidence := range finding.Evidence {
-		if !validPublicMessage(evidence) {
+	for _, observation := range finding.Evidence {
+		if !validPublicMessage(observation.Description) ||
+			(observation.Reference != "" && !validPublicMessage(observation.Reference)) {
 			return false
 		}
+	}
+	for _, action := range finding.Recommendation.Actions {
+		if !validPublicMessage(action) {
+			return false
+		}
+	}
+	if finding.Exclusion != nil && (!validPublicMessage(finding.Exclusion.Reason) ||
+		!validPublicMessage(finding.Exclusion.RequestedBy) ||
+		!validPublicMessage(finding.Exclusion.ApprovedBy)) {
+		return false
 	}
 	return true
 }
@@ -106,17 +116,6 @@ func validDiagnostics(status Status, diagnostics []Diagnostic) bool {
 	}
 
 	return true
-}
-
-func validFindingCode(code string) bool {
-	segments := 0
-	for segment := range strings.SplitSeq(code, ".") {
-		if !validLowerIdentifier(segment, "-_") {
-			return false
-		}
-		segments++
-	}
-	return segments >= 2
 }
 
 func validLowerIdentifier(identifier, separators string) bool {
@@ -203,10 +202,6 @@ func upperAlphaNumeric(character byte) bool {
 		(character >= '0' && character <= '9')
 }
 
-func validSeverity(severity string) bool {
-	return severity == "info" || severity == "warning" || severity == "critical"
-}
-
 func validDiagnosticLevel(level string) bool {
 	return level == "info" || level == "warning" || level == "error"
 }
@@ -247,30 +242,22 @@ func compareFindings(left, right Finding) int {
 	if comparison := severityRank(left.Severity) - severityRank(right.Severity); comparison != 0 {
 		return comparison
 	}
-	if comparison := strings.Compare(left.Code, right.Code); comparison != 0 {
-		return comparison
-	}
-	return compareStringSlices(left.Evidence, right.Evidence)
+	return strings.Compare(left.ID, right.ID)
 }
 
-func severityRank(severity string) int {
+func severityRank(severity finding.Severity) int {
 	switch severity {
-	case "critical":
+	case finding.SeverityCritical:
 		return 0
-	case "warning":
+	case finding.SeverityHigh:
 		return 1
-	default:
+	case finding.SeverityMedium:
 		return 2
+	case finding.SeverityLow:
+		return 3
+	default:
+		return 4
 	}
-}
-
-func compareStringSlices(left, right []string) int {
-	for index := 0; index < min(len(left), len(right)); index++ {
-		if comparison := strings.Compare(left[index], right[index]); comparison != 0 {
-			return comparison
-		}
-	}
-	return len(left) - len(right)
 }
 
 func validText(text string) bool {

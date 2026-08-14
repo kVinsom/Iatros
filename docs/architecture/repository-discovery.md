@@ -86,7 +86,7 @@ Ignored trees and nested repositories are removed before technology, project, re
 
 ## 7. Public report contract
 
-Analysis and topology schemas are version `0.3`.
+Analysis uses schema `1.0` with unified findings. The independent topology schema remains version `0.3`.
 
 - Analysis summary adds `nested_repositories_skipped`.
 - Topology summary adds `nested_repositories_skipped`.

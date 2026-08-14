@@ -3,6 +3,8 @@ package analysis
 import (
 	"errors"
 	"testing"
+
+	"github.com/kVinsom/Iatros/internal/finding"
 )
 
 func TestReportConstructorsReturnValidReports(t *testing.T) {
@@ -39,9 +41,12 @@ func TestReportValidateAcceptsImplementedResults(t *testing.T) {
 	})
 	completed.Summary.EcosystemsDetected = len(completed.Ecosystems)
 	critical := testFinding()
-	critical.Code = "delivery.ci.missing"
-	critical.Severity = "critical"
-	critical.Evidence = []string{"CI configuration not found"}
+	critical.ID = "delivery.ci.missing.local"
+	critical.RuleID = "delivery.ci.missing"
+	critical.Severity = finding.SeverityCritical
+	critical.Evidence = []finding.Evidence{{
+		Kind: finding.EvidenceObservation, Description: "CI configuration was not found.",
+	}}
 	completed.Findings = []Finding{critical, testFinding()}
 	completed.Summary.FindingsTotal = len(completed.Findings)
 
@@ -258,17 +263,17 @@ func TestReportValidateRejectsInvalidData(t *testing.T) {
 			},
 		},
 		{
-			name: "blank finding code",
+			name: "blank finding id",
 			mutate: func(report *Report) {
 				addValidFinding(report)
-				report.Findings[0].Code = ""
+				report.Findings[0].ID = ""
 			},
 		},
 		{
-			name: "undotted finding code",
+			name: "invalid finding rule",
 			mutate: func(report *Report) {
 				addValidFinding(report)
-				report.Findings[0].Code = "readme"
+				report.Findings[0].RuleID = "Readme"
 			},
 		},
 		{
@@ -282,7 +287,7 @@ func TestReportValidateRejectsInvalidData(t *testing.T) {
 			name: "blank finding message",
 			mutate: func(report *Report) {
 				addValidFinding(report)
-				report.Findings[0].Message = ""
+				report.Findings[0].Description = ""
 			},
 		},
 		{
@@ -296,16 +301,18 @@ func TestReportValidateRejectsInvalidData(t *testing.T) {
 			name: "control character in finding evidence",
 			mutate: func(report *Report) {
 				addValidFinding(report)
-				report.Findings[0].Evidence = []string{"forged\x1b[31moutput"}
+				report.Findings[0].Evidence = []finding.Evidence{{
+					Kind: finding.EvidenceObservation, Description: "forged\x1b[31moutput",
+				}}
 			},
 		},
 		{
 			name: "unsorted finding evidence",
 			mutate: func(report *Report) {
 				addValidFinding(report)
-				report.Findings[0].Evidence = []string{
-					"README file not found",
-					"License file not found",
+				report.Findings[0].Evidence = []finding.Evidence{
+					{Kind: finding.EvidenceObservation, Description: "README file was not found."},
+					{Kind: finding.EvidenceObservation, Description: "License file was not found."},
 				}
 			},
 		},
@@ -313,22 +320,43 @@ func TestReportValidateRejectsInvalidData(t *testing.T) {
 			name: "unsorted findings",
 			mutate: func(report *Report) {
 				first := testFinding()
-				first.Code = "repository.license.missing"
-				first.Severity = "info"
-				first.Evidence = []string{"License file not found"}
+				first.ID = "repository.license.missing.local"
+				first.RuleID = "repository.license.missing"
+				first.Severity = finding.SeverityInformational
 				second := testFinding()
-				second.Code = "delivery.ci.missing"
-				second.Severity = "critical"
-				second.Evidence = []string{"CI configuration not found"}
+				second.ID = "delivery.ci.missing.local"
+				second.RuleID = "delivery.ci.missing"
+				second.Severity = finding.SeverityCritical
 				report.Findings = []Finding{first, second}
 				report.Summary.FindingsTotal = len(report.Findings)
 			},
 		},
 		{
-			name: "blank remediation",
+			name: "blank recommendation",
 			mutate: func(report *Report) {
 				addValidFinding(report)
-				report.Findings[0].Remediation = ""
+				report.Findings[0].Recommendation.Summary = ""
+			},
+		},
+		{
+			name: "blank confidence",
+			mutate: func(report *Report) {
+				addValidFinding(report)
+				report.Findings[0].Confidence = ""
+			},
+		},
+		{
+			name: "blank provenance",
+			mutate: func(report *Report) {
+				addValidFinding(report)
+				report.Findings[0].Provenance.Producer = ""
+			},
+		},
+		{
+			name: "blank risk",
+			mutate: func(report *Report) {
+				addValidFinding(report)
+				report.Findings[0].Risk.Summary = ""
 			},
 		},
 	}
@@ -377,10 +405,31 @@ func validEcosystem() Ecosystem {
 
 func testFinding() Finding {
 	return Finding{
-		Code:        "repository.readme.missing",
-		Severity:    "warning",
-		Message:     "No README was detected.",
-		Evidence:    []string{"README file not found at the repository root"},
-		Remediation: "Add a root README.",
-	}
+		ID:          "repository.readme.missing.local",
+		RuleID:      "repository.readme.missing",
+		Title:       "Root README is missing",
+		Description: "No root README was detected.",
+		Severity:    finding.SeverityMedium,
+		Confidence:  finding.ConfidenceHigh,
+		Subjects: []finding.Subject{{
+			Kind: "repository", ID: "local",
+		}},
+		Evidence: []finding.Evidence{{
+			Kind:        finding.EvidenceObservation,
+			Description: "A complete scan found no README at the repository root.",
+		}},
+		Provenance: finding.Provenance{
+			Producer: "iatros.readiness", ProducerVersion: "1.0",
+			RuleVersion: "1.0", Source: "repository_snapshot",
+		},
+		Risk: finding.Risk{
+			Level: finding.RiskMedium, Likelihood: finding.LikelihoodLikely,
+			Summary: "Contributors may not have verified project instructions.",
+		},
+		Recommendation: finding.Recommendation{
+			Summary: "Document the project at the repository root.",
+			Actions: []string{"Add a root README with verified usage instructions."},
+		},
+		Disposition: finding.DispositionActive,
+	}.Normalized()
 }
